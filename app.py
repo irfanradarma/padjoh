@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import seaborn as sns
 
-st.set_page_config(layout="centered", page_title="Padjoh Records")
+st.set_page_config(layout="centered", page_title="Padjoh Journals")
 
 data_dummy = "https://docs.google.com/spreadsheets/d/1NtVj5P20IBdpNfClBhqW6egc8_atUn5VLf7_HdMC_tE/export?format=csv&gid=1161786680"
 data_real = "https://docs.google.com/spreadsheets/d/15HrkvSVfOakXgYKk-CIPFea0BivaEaQdxirQsvImvFk/export?format=csv&gid=1189388432"
