@@ -65,7 +65,7 @@ def plot_monthly_data(df):
     st.pyplot(plt)
 
 def main():
-    st.title("Padjoh")
+    st.title("Padjoh :coffee:")
     tab_cash, tab_custom = st.tabs(["Cash Flow", "Custom View"])
     with tab_cash:
         df_d = daily_data(load_cash())
