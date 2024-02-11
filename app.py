@@ -20,7 +20,7 @@ def load_cash(drop='T'):
     return df
 
 def pivoting(df):
-    df = df.pivot_table(index="Tanggal Jurnal", columns="Jenis", values="Jumlah").reset_index()
+    df = df.pivot_table(index="Tanggal Jurnal", columns="Jenis", values="Jumlah",  aggfunc='sum').reset_index()
     df.fillna(0, inplace=True)
     return df
 
