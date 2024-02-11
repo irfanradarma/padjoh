@@ -68,17 +68,15 @@ def main():
     st.title("Padjoh")
     tab_cash, tab_custom = st.tabs(["Cash Flow", "Custom View"])
     with tab_cash:
-        period = st.radio("Show Daily/Monthly Recap", ["Daily", "Monthly"])
-        if period == "Monthly":
+        df_d = daily_data(load_cash())
+        df_d['Tanggal Jurnal'] = df_d['Tanggal Jurnal'].dt.strftime('%b-%d')
+        df_d = df_d.rename(columns={'Tanggal Jurnal': 'Tanggal'})
+        st.dataframe(df_d, hide_index=True)
+        st.link_button("Input Data Baru", "https://forms.gle/BATMEaJSGeY4TMkR7")
+        with st.expander("Rekap Bulanan"):
             df_m = month_data(load_cash())
             st.dataframe(df_m.drop(['Tanggal Jurnal'], axis=1), hide_index=True)
-            plot_monthly_data(df_m)
-        if period == "Daily":
-            df_d = daily_data(load_cash())
-            df_d['Tanggal Jurnal'] = df_d['Tanggal Jurnal'].dt.strftime('%b-%d')
-            df_d = df_d.rename(columns={'Tanggal Jurnal': 'Tanggal'})
-            st.dataframe(df_d, hide_index=True)
-        st.link_button("Input Data Baru", "https://forms.gle/BATMEaJSGeY4TMkR7")
+            plot_monthly_data(df_m)    
     with tab_custom:
         col1, col2 = st.columns(2)
         with col1:
@@ -88,24 +86,27 @@ def main():
         df_d_custom = daily_data(load_cash())
         df_d_custom['Tanggal Jurnal'] = df_d_custom['Tanggal Jurnal'].dt.date
         df_d_custom = df_d_custom[(df_d_custom['Tanggal Jurnal'] >= start) & (df_d_custom['Tanggal Jurnal'] <= end)]
-        df_d_custom = df_d_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})
-        tab_income, tab_expense = st.tabs(["Pemasukan", "Pengeluaran"])
-        with tab_income:
-            df_custom = df_d_custom.copy()
-            df_custom = df_custom.drop(['Nett', 'Pengeluaran'], axis=1)
-            df_custom['Tanggal'] = pd.to_datetime(df_custom['Tanggal']).dt.strftime('%b-%d')
-            df_custom.sort_values(by='Tanggal', inplace=True)
-            st.dataframe(df_custom, hide_index=True)
-        with tab_expense:
-            df_out_custom = load_cash(drop='F')
-            df_out_custom = df_out_custom[df_out_custom['Jenis'] == 'Pengeluaran']
-            df_out_custom = df_out_custom[(pd.to_datetime(df_out_custom['Tanggal Jurnal']).dt.date >= start)
-                                          & (pd.to_datetime(df_out_custom['Tanggal Jurnal']).dt.date <= end)]
-            df_out_custom['Tanggal Jurnal'] = df_out_custom['Tanggal Jurnal'].dt.strftime('%b-%d')
-            df_out_custom = df_out_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})
-            df_out_custom = df_out_custom[['Tanggal', 'Keterangan', 'Jumlah']]
-            df_out_custom.sort_values(by='Tanggal', inplace=True)
-            st.dataframe(df_out_custom, hide_index=True)
+        df_d_custom = df_d_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})        
+        if st.button('Show'):
+            tab_income, tab_expense = st.tabs(["Pemasukan", "Pengeluaran"])
+            with tab_income:
+                df_custom = df_d_custom.copy()
+                df_custom = df_custom.drop(['Nett', 'Pengeluaran'], axis=1)
+                df_custom['Tanggal'] = pd.to_datetime(df_custom['Tanggal']).dt.strftime('%b-%d')
+                df_custom.sort_values(by='Tanggal', inplace=True)
+                st.dataframe(df_custom, hide_index=True)
+            with tab_expense:
+                df_out_custom = load_cash(drop='F')
+                df_out_custom = df_out_custom[df_out_custom['Jenis'] == 'Pengeluaran']
+                df_out_custom = df_out_custom[(pd.to_datetime(df_out_custom['Tanggal Jurnal']).dt.date >= start)
+                                            & (pd.to_datetime(df_out_custom['Tanggal Jurnal']).dt.date <= end)]
+                df_out_custom['Tanggal Jurnal'] = df_out_custom['Tanggal Jurnal'].dt.strftime('%b-%d')
+                df_out_custom = df_out_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})
+                df_out_custom = df_out_custom[['Tanggal', 'Keterangan', 'Jumlah']]
+                df_out_custom.sort_values(by='Tanggal', inplace=True)
+                st.dataframe(df_out_custom, hide_index=True)
+        else:
+            st.empty()
 
 
         # st.link_button("Input Data Baru", "https://forms.gle/qpnVo48wLkURbYr77")
