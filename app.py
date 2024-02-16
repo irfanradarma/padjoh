@@ -86,7 +86,7 @@ def main():
         df_d_custom = daily_data(load_cash())
         df_d_custom['Tanggal Jurnal'] = df_d_custom['Tanggal Jurnal'].dt.date
         df_d_custom = df_d_custom[(df_d_custom['Tanggal Jurnal'] >= start) & (df_d_custom['Tanggal Jurnal'] <= end)]
-        df_d_custom = df_d_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})        
+        df_d_custom = df_d_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})     
         if st.button('Show'):
             tab_income, tab_expense = st.tabs(["Pemasukan", "Pengeluaran"])
             with tab_income:
@@ -105,10 +105,11 @@ def main():
                 df_out_custom = df_out_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})
                 df_out_custom = df_out_custom.rename(columns={'Upload Bukti (pengeluaran)': 'Lampiran'})
                 df_out_custom['Lampiran'] = df_out_custom['Lampiran'].replace("open", "thumbnail", regex=True)
-                st.data_editor(
+                df_out_custom = df_out_custom.drop(['Jenis'], axis=1)
+                st.dataframe(
                     df_out_custom,
                     column_config={
-                        "Lampiran": st.column_config.ImageColumn("Preview Image", help="List Transaksi")
+                        "Lampiran": st.column_config.ImageColumn("Bukti", help="List Transaksi")
                     }, use_container_width=True, hide_index=True)
         else:
             st.empty()
