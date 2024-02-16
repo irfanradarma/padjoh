@@ -16,7 +16,7 @@ def load_cash(drop='T'):
     df['Jumlah'] = df['Jumlah'].astype(int)
     df['Tanggal Jurnal'] = pd.to_datetime(df['Tanggal Jurnal'])
     if drop == 'T':
-        df = df.drop(['Keterangan'], axis=1)
+        df = df.drop(['Keterangan', 'Upload Bukti (pengeluaran)'], axis=1)
     return df
 
 def pivoting(df):
@@ -94,17 +94,19 @@ def main():
                 df_custom = df_custom.drop(['Nett', 'Pengeluaran'], axis=1)
                 df_custom['Tanggal'] = pd.to_datetime(df_custom['Tanggal']).dt.strftime('%b-%d')
                 df_custom.sort_values(by='Tanggal', inplace=True)
-                st.dataframe(df_custom, hide_index=True)
+                st.dataframe(df_custom, hide_index=True, use_container_width=True)
             with tab_expense:
                 df_out_custom = load_cash(drop='F')
                 df_out_custom = df_out_custom[df_out_custom['Jenis'] == 'Pengeluaran']
-                df_out_custom = df_out_custom[(pd.to_datetime(df_out_custom['Tanggal Jurnal']).dt.date >= start)
-                                            & (pd.to_datetime(df_out_custom['Tanggal Jurnal']).dt.date <= end)]
-                df_out_custom['Tanggal Jurnal'] = df_out_custom['Tanggal Jurnal'].dt.strftime('%b-%d')
+                df_out_custom.sort_values(by='Tanggal Jurnal', inplace=True)
                 df_out_custom = df_out_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})
-                df_out_custom = df_out_custom[['Tanggal', 'Keterangan', 'Jumlah']]
-                df_out_custom.sort_values(by='Tanggal', inplace=True)
-                st.dataframe(df_out_custom, hide_index=True)
+                df_out_custom = df_out_custom.rename(columns={'Upload Bukti (pengeluaran)': 'Lampiran'})
+                df_out_custom['Lampiran'] = df_out_custom['Lampiran'].replace("open", "thumbnail", regex=True)
+                st.data_editor(
+                    df_out_custom,
+                    column_config={
+                        "Lampiran": st.column_config.ImageColumn("Preview Image", help="List Transaksi")},
+                        use_container_width=True)
         else:
             st.empty()
 
