@@ -71,11 +71,11 @@ def main():
         df_d = daily_data(load_cash())
         df_d['Tanggal Jurnal'] = df_d['Tanggal Jurnal'].dt.strftime('%b-%d')
         df_d = df_d.rename(columns={'Tanggal Jurnal': 'Tanggal'})
-        st.dataframe(df_d, hide_index=True)
+        st.dataframe(df_d, hide_index=True, use_container_width=True)
         st.link_button("Input Data Baru", "https://forms.gle/BATMEaJSGeY4TMkR7")
         with st.expander("Rekap Bulanan"):
             df_m = month_data(load_cash())
-            st.dataframe(df_m.drop(['Tanggal Jurnal'], axis=1), hide_index=True)
+            st.dataframe(df_m.drop(['Tanggal Jurnal'], axis=1), hide_index=True, use_container_width=True)
             plot_monthly_data(df_m)    
     with tab_custom:
         col1, col2 = st.columns(2)
@@ -98,6 +98,9 @@ def main():
             with tab_expense:
                 df_out_custom = load_cash(drop='F')
                 df_out_custom = df_out_custom[df_out_custom['Jenis'] == 'Pengeluaran']
+                df_out_custom = df_out_custom[(pd.to_datetime(df_out_custom['Tanggal Jurnal']).dt.date >= start)
+                                            & (pd.to_datetime(df_out_custom['Tanggal Jurnal']).dt.date <= end)]
+                df_out_custom['Tanggal Jurnal'] = df_out_custom['Tanggal Jurnal'].dt.strftime('%b-%d')
                 df_out_custom.sort_values(by='Tanggal Jurnal', inplace=True)
                 df_out_custom = df_out_custom.rename(columns={'Tanggal Jurnal': 'Tanggal'})
                 df_out_custom = df_out_custom.rename(columns={'Upload Bukti (pengeluaran)': 'Lampiran'})
@@ -105,8 +108,8 @@ def main():
                 st.data_editor(
                     df_out_custom,
                     column_config={
-                        "Lampiran": st.column_config.ImageColumn("Preview Image", help="List Transaksi")},
-                        use_container_width=True)
+                        "Lampiran": st.column_config.ImageColumn("Preview Image", help="List Transaksi")
+                    }, use_container_width=True, hide_index=True)
         else:
             st.empty()
 
