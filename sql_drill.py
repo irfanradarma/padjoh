@@ -55,11 +55,14 @@ if "participant" not in st.session_state:
     participant['No'] = participant['index']
     st.session_state.participant = participant[['No', 'Member1', 'Member2', 'Member3']]
 if "score1" not in st.session_state:
-    st.session_state.score1 = scoring(score1)
+    if len(score1)>1:
+        st.session_state.score1 = scoring(score1)
 if "score2" not in st.session_state:
-    st.session_state.score2 = scoring(score2)
+    if len(score2)>1:
+        st.session_state.score2 = scoring(score2)
 if "score3" not in st.session_state:
-    st.session_state.score3 = scoring(score3)
+    if len(score3) > 1:
+        st.session_state.score3 = scoring(score3)
 
 
 
