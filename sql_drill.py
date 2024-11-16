@@ -148,20 +148,20 @@ def main():
                 st.subheader("Final Score")
                 with st.container(border=True):
                     df_final_final = st.session_state.df_satu.copy()
-                    df_final_final = df_final_final.merge(df_satu_final, how='left', left_on='nama', right_on='nama')
+                    df_final_final = df_final_final.merge(df_satu_final.drop_duplicates(subset='nama', keep='first').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
                     df_final_final = df_final_final.rename(columns={'score':'score1'})
                     df_final_final = df_final_final[['nama', 'score1']]
                     # st.dataframe(df_final_final)
-                    df_final_final = df_final_final.merge(df_dua_final, how='left', left_on='nama', right_on='nama')
+                    df_final_final = df_final_final.merge(df_dua_final.drop_duplicates(subset='nama', keep='first').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
                     df_final_final = df_final_final.rename(columns={'score':'score2'})
                     df_final_final = df_final_final[['nama', 'score1', 'score2']]
                     # st.dataframe(df_final_final)
-                    df_final_final = df_final_final.merge(df_tiga_final, how='left', left_on='nama', right_on='nama')
+                    df_final_final = df_final_final.merge(df_tiga_final.drop_duplicates(subset='nama', keep='first').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
                     df_final_final = df_final_final.rename(columns={'score':'score3'})
                     df_final_final = df_final_final[['nama', 'score1', 'score2', 'score3']]
                     # st.dataframe(df_final_final)
                     df_final_final = df_final_final.fillna(0)
-                    df_final_final = df_final_final.drop_duplicates(subset='nama', keep='first').reset_index(drop=True)
+                    # df_final_final = df_final_final.drop_duplicates(subset='nama', keep='first').reset_index(drop=True)
                     df_final_final['final score'] = df_final_final['score1'] + df_final_final['score2'] + df_final_final['score3']
                     df_final_final['rank'] = df_final_final['final score'].rank(method='min', ascending=False).astype(int)
                     df_final_final = df_final_final[['rank', 'nama', 'final score']]
