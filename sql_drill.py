@@ -17,7 +17,7 @@ score3 = pd.read_csv("https://docs.google.com/spreadsheets/d/1kLkYToZVi1b2Gb_y4l
 
 def scoring(df):
     df['score'] = df['Score'].str.split('/').str[0].str.strip().astype(int)
-    df['rank'] = df['Timestamp'].rank(ascending=False).astype(int)
+    df['rank'] = df.iloc[:,1].rank(ascending=False).astype(int)
     
     min_rank = df['rank'].min()
     max_rank = df['rank'].max()
