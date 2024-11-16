@@ -17,7 +17,7 @@ score3 = pd.read_csv("https://docs.google.com/spreadsheets/d/1kLkYToZVi1b2Gb_y4l
 
 def scoring(df):
     df['score'] = df['Score'].str.split('/').str[0].str.strip().astype(int)
-    df['rank'] = df.iloc[:,1].rank(ascending=False).astype(int)
+    df['rank'] = df.iloc[:,0].rank(ascending=False).astype(int)
     
     min_rank = df['rank'].min()
     max_rank = df['rank'].max()
@@ -148,15 +148,15 @@ def main():
                 st.subheader("Final Score")
                 with st.container(border=True):
                     df_final_final = st.session_state.df_satu.copy()
-                    df_final_final = df_final_final.merge(df_satu_final.drop_duplicates(subset='nama', keep='first').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
+                    df_final_final = df_final_final.merge(df_satu_final.drop_duplicates(subset='nama', keep='last').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
                     df_final_final = df_final_final.rename(columns={'score':'score1'})
                     df_final_final = df_final_final[['nama', 'score1']]
                     # st.dataframe(df_final_final)
-                    df_final_final = df_final_final.merge(df_dua_final.drop_duplicates(subset='nama', keep='first').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
+                    df_final_final = df_final_final.merge(df_dua_final.drop_duplicates(subset='nama', keep='last').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
                     df_final_final = df_final_final.rename(columns={'score':'score2'})
                     df_final_final = df_final_final[['nama', 'score1', 'score2']]
                     # st.dataframe(df_final_final)
-                    df_final_final = df_final_final.merge(df_tiga_final.drop_duplicates(subset='nama', keep='first').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
+                    df_final_final = df_final_final.merge(df_tiga_final.drop_duplicates(subset='nama', keep='last').reset_index(drop=True), how='left', left_on='nama', right_on='nama')
                     df_final_final = df_final_final.rename(columns={'score':'score3'})
                     df_final_final = df_final_final[['nama', 'score1', 'score2', 'score3']]
                     # st.dataframe(df_final_final)
