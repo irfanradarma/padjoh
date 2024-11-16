@@ -95,7 +95,7 @@ def main():
     
     with tab_satu:
         col1_1, col1_2 = st.columns(2)
-        if len(st.session_state.score1) > 1:
+        if len(score1) > 1:
             df_satu_final = st.session_state.df_satu.merge(st.session_state.score1, left_on='grup', right_on='grup')
             df_satu_final.sort_values(by='score', ascending=False, inplace=True)
             with col1_1:
@@ -116,7 +116,7 @@ def main():
 
     with tab_dua:
         col2_1, col2_2 = st.columns(2)
-        if len(st.session_state.score2) > 1:
+        if len(score2) > 1:
             df_dua_final = st.session_state.df_dua.merge(st.session_state.score2, left_on='grup', right_on='grup')
             df_dua_final.sort_values(by='score', ascending=False, inplace=True)
             with col2_1:
@@ -137,7 +137,7 @@ def main():
     
     with tab_tiga:
         col3_1, col3_2 = st.columns(2)
-        if len(st.session_state.score3) > 1:
+        if len(score3) > 1:
             df_tiga_final = st.session_state.df_tiga.merge(st.session_state.score3, left_on='grup', right_on='grup')
             df_tiga_final.sort_values(by='score', ascending=False, inplace=True)
             with col3_1:
