@@ -1,0 +1,10 @@
+import streamlit as st
+import pandas as pd
+
+st.set_page_config(layout="wide")
+
+st.title("Rekap Nilai Tugas Audit Sistem Informasi UMN")
+df = pd.read_csv("https://docs.google.com/spreadsheets/d/13GL9wjH-nT2qqsvMG2eYs8eMVZwEPADhKNaBArZDrec/export?format=csv&gid=2114973829")
+df['NIM'] = df['NIM'].astype(str)
+df['NIM'] = "000000"+df['NIM'].astype(str)
+st.dataframe(df, hide_index=True, use_container_width=True, height=5000)
