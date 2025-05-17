@@ -1,3 +1,7 @@
 streamlit
 pandas
 numpy
+PIL
+supabase
+base64
+io
