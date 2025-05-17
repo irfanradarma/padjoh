@@ -3,5 +3,4 @@ pandas
 numpy
 pillow
 supabase
-#base64
-io
+
