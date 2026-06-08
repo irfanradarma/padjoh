@@ -21,7 +21,7 @@ export default function App() {
     if (!session) { setProfile(null); return }
     supabase
       .from('profiles')
-      .select('npm, created_at')
+      .select('npm, name, class, is_admin, created_at')
       .eq('id', session.user.id)
       .single()
       .then(({ data }) => setProfile(data))
@@ -29,7 +29,7 @@ export default function App() {
 
   if (booting) return <Shell><p className="muted">Loading…</p></Shell>
   return session
-    ? <Dashboard session={session} profile={profile} />
+    ? (profile?.is_admin ? <AdminDashboard session={session} /> : <Dashboard session={session} profile={profile} />)
     : <AuthFlow />
 }
 
@@ -47,7 +47,7 @@ function AuthFlow() {
     e.preventDefault()
     setError('')
     const clean = npm.trim()
-    if (!/^\d+$/.test(clean)) { setError('NPM must contain digits only.'); return }
+    if (!clean) { setError('Please enter your NPM or ID.'); return }
     setBusy(true)
     const { data, error } = await supabase.rpc('npm_login_status', { p_npm: clean })
     setBusy(false)
@@ -89,8 +89,8 @@ function AuthFlow() {
       {step === 'npm' && (
         <form onSubmit={checkNpm} className="stack">
           <label>Your NPM
-            <input autoFocus inputMode="numeric" value={npm}
-                   onChange={e => setNpm(e.target.value)} placeholder="e.g. 1234567890" />
+            <input autoFocus value={npm}
+                   onChange={e => setNpm(e.target.value)} placeholder="e.g. 4213250083" />
           </label>
           <button disabled={busy}>{busy ? 'Checking…' : 'Continue'}</button>
         </form>
@@ -130,10 +130,25 @@ function Dashboard({ session, profile }) {
   return (
     <Shell>
       <p className="eyebrow">Signed in</p>
-      <h1>{profile?.npm ?? '…'}</h1>
+      <h1>{profile?.name ?? profile?.npm ?? '…'}</h1>
       <p className="muted">You're authenticated. This is where your app begins.</p>
       <dl className="meta">
         <div><dt>NPM</dt><dd>{profile?.npm ?? '—'}</dd></div>
+        <div><dt>Class</dt><dd>{profile?.class ?? '—'}</dd></div>
+        <div><dt>User ID</dt><dd className="mono">{session.user.id}</dd></div>
+      </dl>
+      <button onClick={() => supabase.auth.signOut()}>Sign out</button>
+    </Shell>
+  )
+}
+
+function AdminDashboard({ session }) {
+  return (
+    <Shell>
+      <p className="eyebrow">Admin</p>
+      <h1>Administrator</h1>
+      <p className="muted">You are signed in as the system administrator.</p>
+      <dl className="meta">
         <div><dt>User ID</dt><dd className="mono">{session.user.id}</dd></div>
       </dl>
       <button onClick={() => supabase.auth.signOut()}>Sign out</button>
