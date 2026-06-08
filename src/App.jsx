@@ -5,30 +5,38 @@ import MainApp from './MainApp'
 const MIN_PW = 8
 
 export default function App() {
-  const [session, setSession] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [booting, setBooting] = useState(true)
+  const [session, setSession]           = useState(null)
+  const [profile, setProfile]           = useState(null)
+  const [booting, setBooting]           = useState(true)
+  const [profileDone, setProfileDone]   = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
       setBooting(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s)
+      if (!s) setProfileDone(false)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
-    if (!session) { setProfile(null); return }
+    if (!session) { setProfile(null); setProfileDone(false); return }
+    setProfileDone(false)
     supabase
       .from('profiles')
       .select('npm, name, class, is_admin, created_at')
       .eq('id', session.user.id)
-      .single()
-      .then(({ data }) => setProfile(data))
+      .maybeSingle()
+      .then(({ data }) => {
+        setProfile(data)
+        setProfileDone(true)
+      })
   }, [session])
 
-  if (booting || (session && !profile)) {
+  if (booting || (session && !profileDone)) {
     return (
       <div className="auth-bg">
         <div style={{ color: 'var(--muted)', fontSize: 14 }}>Loading…</div>
@@ -37,6 +45,21 @@ export default function App() {
   }
 
   if (session && profile) return <MainApp session={session} profile={profile} />
+
+  if (session && !profile) {
+    return (
+      <div className="auth-bg">
+        <div className="auth-card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+          <p style={{ color: 'var(--text)', fontWeight: 600, margin: '0 0 8px' }}>Profil tidak ditemukan</p>
+          <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 20px' }}>
+            Akun Anda belum memiliki profil. Silakan hubungi administrator.
+          </p>
+          <button className="btn btn-ghost" onClick={() => supabase.auth.signOut()}>Keluar</button>
+        </div>
+      </div>
+    )
+  }
 
   return <AuthFlow />
 }
