@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase, npmToEmail } from './supabaseClient'
+import MainApp from './MainApp'
 
-const MIN_PASSWORD = 8
+const MIN_PW = 8
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -27,14 +28,21 @@ export default function App() {
       .then(({ data }) => setProfile(data))
   }, [session])
 
-  if (booting) return <Shell><p className="muted">Loading…</p></Shell>
-  return session
-    ? (profile?.is_admin ? <AdminDashboard session={session} /> : <Dashboard session={session} profile={profile} />)
-    : <AuthFlow />
+  if (booting || (session && !profile)) {
+    return (
+      <div className="auth-bg">
+        <div style={{ color: 'var(--muted)', fontSize: 14 }}>Loading…</div>
+      </div>
+    )
+  }
+
+  if (session && profile) return <MainApp session={session} profile={profile} />
+
+  return <AuthFlow />
 }
 
 function AuthFlow() {
-  const [step, setStep] = useState('npm')   // 'npm' | 'register' | 'login'
+  const [step, setStep] = useState('npm')
   const [npm, setNpm] = useState('')
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
@@ -60,16 +68,13 @@ function AuthFlow() {
   async function doRegister(e) {
     e.preventDefault()
     setError('')
-    if (pw.length < MIN_PASSWORD) { setError(`Password must be at least ${MIN_PASSWORD} characters.`); return }
+    if (pw.length < MIN_PW) { setError(`Password must be at least ${MIN_PW} characters.`); return }
     if (pw !== pw2) { setError('Passwords do not match.'); return }
     setBusy(true)
     const { data, error } = await supabase.auth.signUp({ email: npmToEmail(npm), password: pw })
     setBusy(false)
     if (error) { setError(error.message); return }
-    if (!data.session) {
-      setError('Account created, but no session was returned — make sure “Confirm email” is OFF in Supabase → Authentication → Providers → Email.')
-    }
-    // On success the auth listener in <App/> flips us to the dashboard.
+    if (!data.session) setError('Account created — but no session returned. Disable email confirmation in Supabase → Auth → Providers → Email.')
   }
 
   async function doLogin(e) {
@@ -82,85 +87,66 @@ function AuthFlow() {
   }
 
   return (
-    <Shell>
-      <p className="eyebrow">Student Access</p>
-      <h1>NPM Portal</h1>
+    <div className="auth-bg">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <div className="logo-icon-lg">📊</div>
+          <h1>IS Audit Journal</h1>
+          <p>Information System Audit · PKN STAN</p>
+        </div>
 
-      {step === 'npm' && (
-        <form onSubmit={checkNpm} className="stack">
-          <label>Your NPM
-            <input autoFocus value={npm}
-                   onChange={e => setNpm(e.target.value)} placeholder="e.g. 4213250083" />
-          </label>
-          <button disabled={busy}>{busy ? 'Checking…' : 'Continue'}</button>
-        </form>
-      )}
+        {step === 'npm' && (
+          <>
+            <div className="auth-step">Masuk ke akun Anda</div>
+            <p className="auth-title">Masukkan NPM</p>
+            <form onSubmit={checkNpm}>
+              <div className="form-group">
+                <label>NPM / Student ID</label>
+                <input autoFocus value={npm} onChange={e => setNpm(e.target.value)} placeholder="e.g. 4213250083" />
+              </div>
+              <button className="btn btn-primary" disabled={busy}>{busy ? 'Memeriksa…' : 'Lanjutkan →'}</button>
+            </form>
+          </>
+        )}
 
-      {step === 'register' && (
-        <form onSubmit={doRegister} className="stack">
-          <p className="muted">First time here, <strong>{npm}</strong>. Choose a password to create your account.</p>
-          <label>New password
-            <input autoFocus type="password" value={pw} onChange={e => setPw(e.target.value)} />
-          </label>
-          <label>Confirm password
-            <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} />
-          </label>
-          <button disabled={busy}>{busy ? 'Creating…' : 'Create account'}</button>
-          <button type="button" className="link" onClick={back}>← Use a different NPM</button>
-        </form>
-      )}
+        {step === 'register' && (
+          <>
+            <div className="auth-step">Akun baru</div>
+            <p className="auth-title">Buat password</p>
+            <p className="auth-hint">Pertama kali masuk, <strong>{npm}</strong>. Buat password untuk akun Anda.</p>
+            <form onSubmit={doRegister}>
+              <div className="form-group">
+                <label>Password baru</label>
+                <input autoFocus type="password" value={pw} onChange={e => setPw(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Konfirmasi password</label>
+                <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} />
+              </div>
+              <button className="btn btn-primary" disabled={busy}>{busy ? 'Membuat…' : 'Buat Akun'}</button>
+              <button type="button" className="btn btn-ghost" onClick={back}>← Gunakan NPM lain</button>
+            </form>
+          </>
+        )}
 
-      {step === 'login' && (
-        <form onSubmit={doLogin} className="stack">
-          <p className="muted">Welcome back, <strong>{npm}</strong>.</p>
-          <label>Password
-            <input autoFocus type="password" value={pw} onChange={e => setPw(e.target.value)} />
-          </label>
-          <button disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-          <button type="button" className="link" onClick={back}>← Use a different NPM</button>
-        </form>
-      )}
+        {step === 'login' && (
+          <>
+            <div className="auth-step">Selamat datang kembali</div>
+            <p className="auth-title">Masuk</p>
+            <p className="auth-hint">Halo, <strong>{npm}</strong>. Masukkan password Anda.</p>
+            <form onSubmit={doLogin}>
+              <div className="form-group">
+                <label>Password</label>
+                <input autoFocus type="password" value={pw} onChange={e => setPw(e.target.value)} />
+              </div>
+              <button className="btn btn-primary" disabled={busy}>{busy ? 'Masuk…' : 'Masuk'}</button>
+              <button type="button" className="btn btn-ghost" onClick={back}>← Gunakan NPM lain</button>
+            </form>
+          </>
+        )}
 
-      {error && <p className="error">{error}</p>}
-    </Shell>
-  )
-}
-
-function Dashboard({ session, profile }) {
-  return (
-    <Shell>
-      <p className="eyebrow">Signed in</p>
-      <h1>{profile?.name ?? profile?.npm ?? '…'}</h1>
-      <p className="muted">You're authenticated. This is where your app begins.</p>
-      <dl className="meta">
-        <div><dt>NPM</dt><dd>{profile?.npm ?? '—'}</dd></div>
-        <div><dt>Class</dt><dd>{profile?.class ?? '—'}</dd></div>
-        <div><dt>User ID</dt><dd className="mono">{session.user.id}</dd></div>
-      </dl>
-      <button onClick={() => supabase.auth.signOut()}>Sign out</button>
-    </Shell>
-  )
-}
-
-function AdminDashboard({ session }) {
-  return (
-    <Shell>
-      <p className="eyebrow">Admin</p>
-      <h1>Administrator</h1>
-      <p className="muted">You are signed in as the system administrator.</p>
-      <dl className="meta">
-        <div><dt>User ID</dt><dd className="mono">{session.user.id}</dd></div>
-      </dl>
-      <button onClick={() => supabase.auth.signOut()}>Sign out</button>
-    </Shell>
-  )
-}
-
-function Shell({ children }) {
-  return (
-    <main className="page">
-      <div className="card">{children}</div>
-      <footer>Supabase · GitHub Pages</footer>
-    </main>
+        {error && <div className="auth-error">{error}</div>}
+      </div>
+    </div>
   )
 }
