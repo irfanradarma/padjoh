@@ -188,13 +188,9 @@ function StudentNotesView({ sectionId, userId }) {
     setStatus('')
     setSaveError('')
     supabase
-      .from('notes')
-      .select('content')
-      .eq('user_id', userId)
-      .eq('section_id', sectionId)
-      .maybeSingle()
+      .rpc('get_note', { p_section_id: sectionId })
       .then(({ data }) => {
-        const parsed = parseBlocks(data?.content ?? null)
+        const parsed = parseBlocks(data ?? null)
         setBlocks(parsed)
         setLoadKey(k => k + 1)
         setLoading(false)
@@ -304,14 +300,17 @@ function AdminNotesView({ sectionId, selectedStudentId, students }) {
 
   useEffect(() => {
     setLoading(true)
-    const q = supabase.from('notes').select('user_id, content').eq('section_id', sectionId)
-    if (selectedStudentId) q.eq('user_id', selectedStudentId)
-    q.then(({ data }) => {
-      const map = {}
-      for (const row of data ?? []) map[row.user_id] = parseBlocks(row.content)
-      setNotesByUser(map)
-      setLoading(false)
-    })
+    supabase
+      .rpc('get_section_notes', { p_section_id: sectionId })
+      .then(({ data }) => {
+        const map = {}
+        for (const row of data ?? []) {
+          if (!selectedStudentId || row.user_id === selectedStudentId)
+            map[row.user_id] = parseBlocks(row.content)
+        }
+        setNotesByUser(map)
+        setLoading(false)
+      })
   }, [sectionId, selectedStudentId])
 
   const displayStudents = selectedStudentId
