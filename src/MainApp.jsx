@@ -1,14 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { SECTIONS, PRE_UTS, POST_UTS } from './sections'
 import DashboardPage from './pages/DashboardPage'
 import ClassPage from './pages/ClassPage'
 import MindmapPage from './pages/MindmapPage'
+import ForumPage from './pages/ForumPage'
 
 export default function MainApp({ session, profile, theme, toggleTheme }) {
-  const [page, setPage] = useState({ type: 'dashboard' })
-  const [preOpen, setPreOpen] = useState(false)
+  const [page, setPage]         = useState({ type: 'dashboard' })
+  const [preOpen, setPreOpen]   = useState(false)
   const [postOpen, setPostOpen] = useState(false)
+  const [starsMap, setStarsMap] = useState({})   // { sectionId: count } — student only
+
+  useEffect(() => {
+    if (profile.is_admin) return
+    supabase.rpc('get_my_stars').then(({ data }) => {
+      const map = {}
+      for (const row of data ?? []) map[row.section_id] = row.count
+      setStarsMap(map)
+    })
+  }, [profile.is_admin])
 
   function goToClass(sectionId) {
     const s = SECTIONS.find(s => s.id === sectionId)
@@ -67,7 +78,10 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
                   onClick={() => goToClass(s.id)}
                 >
                   <span className="nav-child-num">{s.id}</span>
-                  {s.short}
+                  <span style={{ flex: 1 }}>{s.short}</span>
+                  {!profile.is_admin && starsMap[s.id] > 0 && (
+                    <span className="nav-stars-badge">★{starsMap[s.id]}</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -90,7 +104,10 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
                   onClick={() => goToClass(s.id)}
                 >
                   <span className="nav-child-num">{s.id}</span>
-                  {s.short}
+                  <span style={{ flex: 1 }}>{s.short}</span>
+                  {!profile.is_admin && starsMap[s.id] > 0 && (
+                    <span className="nav-stars-badge">★{starsMap[s.id]}</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -102,6 +119,14 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
           >
             <span className="nav-icon">🗺️</span>
             <span className="nav-label">Mind Map</span>
+          </div>
+
+          <div
+            className={`nav-item${page.type === 'forum' ? ' active' : ''}`}
+            onClick={() => setPage({ type: 'forum' })}
+          >
+            <span className="nav-icon">💬</span>
+            <span className="nav-label">Forum</span>
           </div>
         </nav>
 
@@ -119,7 +144,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
 
       <main className="main-content">
         {page.type === 'dashboard' && (
-          <DashboardPage profile={profile} onNavigate={goToClass} />
+          <DashboardPage profile={profile} starsMap={starsMap} onNavigate={goToClass} />
         )}
         {page.type === 'class' && (
           <ClassPage
@@ -127,9 +152,11 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             sectionId={page.sectionId}
             session={session}
             profile={profile}
+            starsMap={starsMap}
           />
         )}
         {page.type === 'mindmap' && <MindmapPage />}
+        {page.type === 'forum'   && <ForumPage profile={profile} />}
       </main>
     </div>
   )

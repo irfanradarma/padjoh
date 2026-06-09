@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { SECTIONS } from '../sections'
 
-export default function DashboardPage({ profile, onNavigate }) {
+export default function DashboardPage({ profile, starsMap = {}, onNavigate }) {
   const [assignments, setAssignments] = useState([])
   const [noteCount, setNoteCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -59,11 +59,21 @@ export default function DashboardPage({ profile, onNavigate }) {
           <div className="stat-value">16</div>
           <div className="stat-sub">Pre-UTS + Post-UTS</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-label">Deadline Mendatang</div>
-          <div className="stat-value">{assignments.length}</div>
-          <div className="stat-sub">tugas aktif</div>
-        </div>
+        {!profile.is_admin ? (
+          <div className="stat-card">
+            <div className="stat-label">Total Bintang ★</div>
+            <div className="stat-value" style={{ color: '#f59e0b' }}>
+              {Object.values(starsMap).reduce((a, b) => a + b, 0)}
+            </div>
+            <div className="stat-sub">dari {Object.keys(starsMap).length} sesi</div>
+          </div>
+        ) : (
+          <div className="stat-card">
+            <div className="stat-label">Deadline Mendatang</div>
+            <div className="stat-value">{assignments.length}</div>
+            <div className="stat-sub">tugas aktif</div>
+          </div>
+        )}
       </div>
 
       <p className="section-heading">Deadline Terdekat</p>

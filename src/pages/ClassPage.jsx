@@ -11,7 +11,7 @@ const TABS = [
   { id: 'activities', label: '⭐ Activities' },
 ]
 
-export default function ClassPage({ sectionId, session, profile }) {
+export default function ClassPage({ sectionId, session, profile, starsMap = {} }) {
   const [activeTab, setActiveTab]             = useState('notes')
   const [selectedStudentId, setSelectedStudentId] = useState('')
   const [searchText, setSearchText]           = useState('')
@@ -50,7 +50,7 @@ export default function ClassPage({ sectionId, session, profile }) {
     setDropdownOpen(false)
   }
 
-  const sharedProps = { sectionId, userId: session.user.id, profile, selectedStudentId, students }
+  const sharedProps = { sectionId, userId: session.user.id, profile, selectedStudentId, students, starsMap }
 
   return (
     <div className="page-content">
@@ -63,6 +63,11 @@ export default function ClassPage({ sectionId, session, profile }) {
           <div>
             <h2 style={{ margin: '0 0 4px' }}>{section?.title}</h2>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Information System Audit — jurnal kelas</p>
+            {!profile.is_admin && starsMap[sectionId] > 0 && (
+              <div className="section-stars-badge">
+                {'★'.repeat(starsMap[sectionId])} &nbsp;{starsMap[sectionId]} bintang
+              </div>
+            )}
           </div>
 
           {profile.is_admin && (
@@ -126,7 +131,7 @@ export default function ClassPage({ sectionId, session, profile }) {
 
       {activeTab === 'notes'      && <NotesTab      {...sharedProps} />}
       {activeTab === 'exercise'   && <ExerciseTab   {...sharedProps} />}
-      {activeTab === 'activities' && <ActivitiesTab sectionId={sectionId} userId={session.user.id} profile={profile} />}
+      {activeTab === 'activities' && <ActivitiesTab {...sharedProps} />}
     </div>
   )
 }
