@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 
 function genId() {
@@ -175,16 +175,16 @@ function StudentSection({ student, blocks }) {
 // ── Student editable view ───────────────────────────────────
 function StudentNotesView({ sectionId, userId }) {
   const [blocks, setBlocks]   = useState([newTextBlock()])
-  const [status, setStatus]   = useState('')
+  const [status, setStatus]   = useState('')   // '' | 'saving' | 'saved' | 'error'
   const [loading, setLoading] = useState(true)
   const [loadKey, setLoadKey] = useState(0)
-  const timerRef   = useRef(null)
   const fileRef    = useRef()
   const blocksRef  = useRef(blocks)
   blocksRef.current = blocks
 
   useEffect(() => {
     setLoading(true)
+    setStatus('')
     supabase
       .from('notes')
       .select('content')
@@ -199,27 +199,27 @@ function StudentNotesView({ sectionId, userId }) {
       })
   }, [sectionId, userId])
 
-  const scheduleSave = useCallback((newBlocks) => {
-    setStatus('unsaved')
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(async () => {
-      setStatus('saving')
-      await supabase
-        .from('notes')
-        .upsert(
-          { user_id: userId, section_id: sectionId, content: JSON.stringify(newBlocks), updated_at: new Date().toISOString() },
-          { onConflict: 'user_id,section_id' }
-        )
-      setStatus('saved')
-      setTimeout(() => setStatus(''), 2500)
-    }, 1000)
-  }, [userId, sectionId])
+  async function saveNotes() {
+    setStatus('saving')
+    const { error } = await supabase
+      .from('notes')
+      .upsert(
+        { user_id: userId, section_id: sectionId, content: JSON.stringify(blocksRef.current), updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,section_id' }
+      )
+    if (error) {
+      console.error('Save error:', error)
+      setStatus('error')
+      return
+    }
+    setStatus('saved')
+    setTimeout(() => setStatus(''), 3000)
+  }
 
   function mutateBlocks(fn) {
     const next = fn(blocksRef.current)
     const safe = next.length > 0 ? next : [newTextBlock()]
     setBlocks(safe)
-    scheduleSave(safe)
   }
 
   function updateBlock(id, updated) {
@@ -247,10 +247,17 @@ function StudentNotesView({ sectionId, userId }) {
     <div className="notes-blocks-container">
       <div className="notes-save-bar">
         <span>Catatan Anda untuk sesi ini</span>
-        <span>
-          {status === 'saving'  && <span className="save-saving">● Menyimpan…</span>}
-          {status === 'saved'   && <span className="save-saved">✓ Tersimpan</span>}
-          {status === 'unsaved' && <span style={{ color: 'var(--muted)' }}>○ Belum disimpan</span>}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {status === 'saved'  && <span className="save-saved">✓ Tersimpan</span>}
+          {status === 'error'  && <span style={{ color: '#f87171', fontSize: 12 }}>✕ Gagal menyimpan</span>}
+          <button
+            className="btn btn-primary"
+            style={{ padding: '5px 18px', fontSize: 13 }}
+            onClick={saveNotes}
+            disabled={status === 'saving'}
+          >
+            {status === 'saving' ? 'Menyimpan…' : 'Simpan'}
+          </button>
         </span>
       </div>
 
