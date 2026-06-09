@@ -174,9 +174,10 @@ function StudentSection({ student, blocks }) {
 
 // ── Student editable view ───────────────────────────────────
 function StudentNotesView({ sectionId, userId }) {
-  const [blocks, setBlocks]   = useState([newTextBlock()])
-  const [status, setStatus]   = useState('')   // '' | 'saving' | 'saved' | 'error'
-  const [loading, setLoading] = useState(true)
+  const [blocks, setBlocks]     = useState([newTextBlock()])
+  const [status, setStatus]     = useState('')   // '' | 'saving' | 'saved' | 'error'
+  const [saveError, setSaveError] = useState('')
+  const [loading, setLoading]   = useState(true)
   const [loadKey, setLoadKey] = useState(0)
   const fileRef    = useRef()
   const blocksRef  = useRef(blocks)
@@ -185,6 +186,7 @@ function StudentNotesView({ sectionId, userId }) {
   useEffect(() => {
     setLoading(true)
     setStatus('')
+    setSaveError('')
     supabase
       .from('notes')
       .select('content')
@@ -201,17 +203,17 @@ function StudentNotesView({ sectionId, userId }) {
 
   async function saveNotes() {
     setStatus('saving')
-    const { error } = await supabase
-      .from('notes')
-      .upsert(
-        { user_id: userId, section_id: sectionId, content: JSON.stringify(blocksRef.current), updated_at: new Date().toISOString() },
-        { onConflict: 'user_id,section_id' }
-      )
+    const { error } = await supabase.rpc('save_note', {
+      p_section_id: sectionId,
+      p_content: JSON.stringify(blocksRef.current),
+    })
     if (error) {
       console.error('Save error:', error)
       setStatus('error')
+      setSaveError(error.message)
       return
     }
+    setSaveError('')
     setStatus('saved')
     setTimeout(() => setStatus(''), 3000)
   }
@@ -249,7 +251,7 @@ function StudentNotesView({ sectionId, userId }) {
         <span>Catatan Anda untuk sesi ini</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {status === 'saved'  && <span className="save-saved">✓ Tersimpan</span>}
-          {status === 'error'  && <span style={{ color: '#f87171', fontSize: 12 }}>✕ Gagal menyimpan</span>}
+          {status === 'error'  && <span style={{ color: '#f87171', fontSize: 12 }}>✕ Gagal menyimpan{saveError ? `: ${saveError}` : ''}</span>}
           <button
             className="btn btn-primary"
             style={{ padding: '5px 18px', fontSize: 13 }}
