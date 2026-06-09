@@ -18,21 +18,21 @@ function StudentExerciseView({ sectionId, userId }) {
   useEffect(() => { loadFiles() }, [sectionId, userId])
 
   async function loadFiles() {
-    const { data } = await supabase
-      .from('exercises')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('section_id', sectionId)
-      .order('uploaded_at', { ascending: false })
+    const { data } = await supabase.rpc('get_my_exercises', { p_section_id: sectionId })
     setFiles(data ?? [])
   }
 
   async function uploadFile(file) {
     setUploading(true)
     const path = `${userId}/${sectionId}/${Date.now()}_${file.name}`
-    const { error } = await supabase.storage.from('exercises').upload(path, file)
-    if (error) { alert(error.message); setUploading(false); return }
-    await supabase.from('exercises').insert({ user_id: userId, section_id: sectionId, file_name: file.name, file_path: path })
+    const { error: storageErr } = await supabase.storage.from('exercises').upload(path, file)
+    if (storageErr) { alert(storageErr.message); setUploading(false); return }
+    const { error: dbErr } = await supabase.rpc('save_exercise', {
+      p_section_id: sectionId,
+      p_file_name:  file.name,
+      p_file_path:  path,
+    })
+    if (dbErr) { alert(dbErr.message); setUploading(false); return }
     await loadFiles()
     setUploading(false)
   }
@@ -41,7 +41,7 @@ function StudentExerciseView({ sectionId, userId }) {
     if (!confirm(`Hapus file "${f.file_name}"?`)) return
     await Promise.all([
       supabase.storage.from('exercises').remove([f.file_path]),
-      supabase.from('exercises').delete().eq('id', f.id),
+      supabase.rpc('delete_exercise', { p_id: f.id }),
     ])
     setFiles(prev => prev.filter(x => x.id !== f.id))
   }
@@ -154,17 +154,13 @@ function AdminExerciseView({ sectionId, selectedStudentId, students }) {
 
   useEffect(() => {
     setLoading(true)
-    const q = supabase
-      .from('exercises')
-      .select('*')
-      .eq('section_id', sectionId)
-      .order('uploaded_at', { ascending: false })
-    if (selectedStudentId) q.eq('user_id', selectedStudentId)
-    q.then(({ data }) => {
+    supabase.rpc('get_section_exercises', { p_section_id: sectionId }).then(({ data }) => {
       const map = {}
       for (const f of data ?? []) {
-        if (!map[f.user_id]) map[f.user_id] = []
-        map[f.user_id].push(f)
+        if (!selectedStudentId || f.user_id === selectedStudentId) {
+          if (!map[f.user_id]) map[f.user_id] = []
+          map[f.user_id].push(f)
+        }
       }
       setFilesByUser(map)
       setLoading(false)
