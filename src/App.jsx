@@ -26,12 +26,10 @@ export default function App() {
     if (!session) { setProfile(null); setProfileDone(false); return }
     setProfileDone(false)
     supabase
-      .from('profiles')
-      .select('npm, name, class, is_admin, created_at')
-      .eq('id', session.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        setProfile(data)
+      .rpc('get_my_profile')
+      .then(({ data, error }) => {
+        if (error) console.error('Profile RPC error:', error)
+        setProfile(data ?? null)
         setProfileDone(true)
       })
   }, [session])
