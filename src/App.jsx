@@ -4,11 +4,25 @@ import MainApp from './MainApp'
 
 const MIN_PW = 8
 
+// Apply saved theme synchronously before first paint
+;(function () {
+  const t = localStorage.getItem('theme') || 'dark'
+  document.documentElement.setAttribute('data-theme', t)
+})()
+
 export default function App() {
   const [session, setSession]           = useState(null)
   const [profile, setProfile]           = useState(null)
   const [booting, setBooting]           = useState(true)
   const [profileDone, setProfileDone]   = useState(false)
+  const [theme, setTheme]               = useState(() => localStorage.getItem('theme') || 'dark')
+
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    document.documentElement.setAttribute('data-theme', next)
+    localStorage.setItem('theme', next)
+    setTheme(next)
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -42,7 +56,7 @@ export default function App() {
     )
   }
 
-  if (session && profile) return <MainApp session={session} profile={profile} />
+  if (session && profile) return <MainApp session={session} profile={profile} theme={theme} toggleTheme={toggleTheme} />
 
   if (session && !profile) {
     return (

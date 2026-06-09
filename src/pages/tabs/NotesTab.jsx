@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 
+const IMAGE_MIME = new Set(['image/jpeg','image/jpg','image/png','image/gif','image/webp','image/svg+xml'])
+
 function genId() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
@@ -111,6 +113,29 @@ function FileBlock({ block, onDelete }) {
   )
 }
 
+// ── Image block ─────────────────────────────────────────────
+function ImageBlock({ block, onDelete, readOnly = false }) {
+  const [url, setUrl] = useState(null)
+  useEffect(() => {
+    supabase.storage.from('exercises').createSignedUrl(block.path, 3600)
+      .then(({ data }) => { if (data?.signedUrl) setUrl(data.signedUrl) })
+  }, [block.path])
+  return (
+    <div className={`note-image-block${readOnly ? ' readonly' : ''}`}>
+      {url
+        ? <img src={url} alt={block.name} className="note-image" />
+        : <div className="note-image-loading">Memuat gambar…</div>
+      }
+      <div className="note-image-caption">
+        <span>{block.name}</span>
+        {!readOnly && (
+          <button className="btn-sm btn-danger" onMouseDown={e => { e.preventDefault(); onDelete() }}>Hapus</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Read-only blocks (admin view) ───────────────────────────
 function BlocksReadOnly({ blocks }) {
   async function download(path) {
@@ -128,6 +153,8 @@ function BlocksReadOnly({ blocks }) {
                 __html: b.html || '<span style="opacity:.4;font-style:italic">— belum ada isi —</span>',
               }}
             />
+          ) : b.type === 'image' ? (
+            <ImageBlock block={b} readOnly />
           ) : (
             <div className="note-file-block readonly">
               <div className="note-file-icon">📄</div>
@@ -236,7 +263,8 @@ function StudentNotesView({ sectionId, userId }) {
     const path = `${userId}/notes/${sectionId}/${Date.now()}_${file.name}`
     const { error } = await supabase.storage.from('exercises').upload(path, file)
     if (error) { alert(error.message); return }
-    mutateBlocks(prev => [...prev, { id: genId(), type: 'file', name: file.name, path }])
+    const type = IMAGE_MIME.has(file.type) ? 'image' : 'file'
+    mutateBlocks(prev => [...prev, { id: genId(), type, name: file.name, path }])
   }
 
   if (loading) return <div className="empty-state"><p>Memuat catatan…</p></div>
@@ -267,6 +295,12 @@ function StudentNotesView({ sectionId, userId }) {
               block={block}
               loadKey={loadKey}
               onChange={updated => updateBlock(block.id, updated)}
+              onDelete={() => deleteBlock(block.id)}
+            />
+          ) : block.type === 'image' ? (
+            <ImageBlock
+              key={`${sectionId}-${block.id}`}
+              block={block}
               onDelete={() => deleteBlock(block.id)}
             />
           ) : (

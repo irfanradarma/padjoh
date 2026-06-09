@@ -5,7 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import ClassPage from './pages/ClassPage'
 import MindmapPage from './pages/MindmapPage'
 
-export default function MainApp({ session, profile }) {
+export default function MainApp({ session, profile, theme, toggleTheme }) {
   const [page, setPage] = useState({ type: 'dashboard' })
   const [preOpen, setPreOpen] = useState(false)
   const [postOpen, setPostOpen] = useState(false)
@@ -106,6 +106,10 @@ export default function MainApp({ session, profile }) {
         </nav>
 
         <div className="sidebar-footer">
+          <button className="theme-toggle" onClick={toggleTheme}>
+            <span className="nav-icon">{theme === 'dark' ? '☀️' : '🌙'}</span>
+            <span>{theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}</span>
+          </button>
           <div className="nav-item" onClick={() => supabase.auth.signOut()}>
             <span className="nav-icon">↩</span>
             <span className="nav-label">Keluar</span>
