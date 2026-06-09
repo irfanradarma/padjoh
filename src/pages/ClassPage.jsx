@@ -24,12 +24,7 @@ export default function ClassPage({ sectionId, session, profile }) {
 
   useEffect(() => {
     if (!profile.is_admin) return
-    supabase
-      .from('profiles')
-      .select('id, npm, name, class')
-      .eq('is_admin', false)
-      .order('name')
-      .then(({ data }) => setStudents(data ?? []))
+    supabase.rpc('get_students').then(({ data }) => setStudents(data ?? []))
   }, [profile.is_admin])
 
   useEffect(() => {
