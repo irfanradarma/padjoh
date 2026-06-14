@@ -7,25 +7,70 @@ import MindmapPage from './pages/MindmapPage'
 import ForumPage from './pages/ForumPage'
 import DeadlinePage from './pages/DeadlinePage'
 
+// ── Hash routing helpers ──────────────────────────────────────
+const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline']
+
+function hashToPage(hash) {
+  const h = (hash || '').replace(/^#\/?/, '')
+  const [type, param] = h.split('/')
+  if (type === 'class' && param && !isNaN(Number(param))) {
+    const id = Number(param)
+    if (SECTIONS.find(s => s.id === id)) return { type: 'class', sectionId: id }
+  }
+  if (VALID_PAGES.includes(type)) return { type }
+  return { type: 'dashboard' }
+}
+
+function pageToHash(page) {
+  if (page.type === 'class') return `#/class/${page.sectionId}`
+  return `#/${page.type}`
+}
+
+function sectionGroup(sectionId) {
+  return SECTIONS.find(s => s.id === sectionId)?.group ?? null
+}
+
+// ─────────────────────────────────────────────────────────────
+
 export default function MainApp({ session, profile, theme, toggleTheme }) {
-  const [page, setPage]             = useState({ type: 'dashboard' })
-  const [preOpen, setPreOpen]       = useState(false)
-  const [postOpen, setPostOpen]     = useState(false)
-  const [starsMap, setStarsMap]     = useState({})
-  const [masqAs, setMasqAs]         = useState(null)   // { id, npm, name, class } | null
+  const initialPage = hashToPage(window.location.hash)
+
+  const [page, setPage]           = useState(initialPage)
+  const [starsMap, setStarsMap]   = useState({})
+  const [masqAs, setMasqAs]       = useState(null)
   const [allStudents, setAllStudents] = useState([])
 
-  // Load student list for admin (used by masquerade picker)
+  // Open the right sidebar accordion on load/restore
+  const [preOpen, setPreOpen]   = useState(
+    initialPage.type === 'class' && sectionGroup(initialPage.sectionId) === 'pre'
+  )
+  const [postOpen, setPostOpen] = useState(
+    initialPage.type === 'class' && sectionGroup(initialPage.sectionId) === 'post'
+  )
+
+  // Sync browser hash → page state (back/forward, external reload)
+  useEffect(() => {
+    const handler = () => setPage(hashToPage(window.location.hash))
+    window.addEventListener('hashchange', handler)
+    return () => window.removeEventListener('hashchange', handler)
+  }, [])
+
+  // Navigate: write to hash (hashchange listener updates state)
+  function navigate(newPage) {
+    const hash = pageToHash(newPage)
+    if (window.location.hash !== hash) window.location.hash = hash
+    else setPage(newPage) // same hash — force re-render (e.g. reload same section)
+  }
+
+  // Load student list for admin
   useEffect(() => {
     if (!profile.is_admin) return
     supabase.rpc('get_students').then(({ data }) => setAllStudents(data ?? []))
   }, [profile.is_admin])
 
-  // Load stars for student (or admin masquerading — uses admin's own account)
-  const viewProfile = masqAs
-    ? { ...masqAs, is_admin: false }
-    : profile
+  const viewProfile = masqAs ? { ...masqAs, is_admin: false } : profile
 
+  // Load stars
   useEffect(() => {
     if (viewProfile.is_admin) { setStarsMap({}); return }
     supabase.rpc('get_my_stars').then(({ data }) => {
@@ -36,15 +81,15 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   }, [viewProfile.is_admin, masqAs])
 
   function goToClass(sectionId) {
-    const s = SECTIONS.find(s => s.id === sectionId)
-    if (s.group === 'pre') setPreOpen(true)
+    const g = sectionGroup(sectionId)
+    if (g === 'pre') setPreOpen(true)
     else setPostOpen(true)
-    setPage({ type: 'class', sectionId })
+    navigate({ type: 'class', sectionId })
   }
 
   function exitMasquerade() {
     setMasqAs(null)
-    setPage({ type: 'dashboard' })
+    navigate({ type: 'dashboard' })
   }
 
   const initials = (profile.name ?? profile.npm ?? '?')
@@ -87,7 +132,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
               onChange={e => {
                 const student = allStudents.find(s => s.id === e.target.value) ?? null
                 setMasqAs(student)
-                setPage({ type: 'dashboard' })
+                navigate({ type: 'dashboard' })
               }}
             >
               <option value="">— Tampilan admin —</option>
@@ -101,7 +146,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         <nav className="sidebar-nav">
           <div
             className={`nav-item${page.type === 'dashboard' ? ' active' : ''}`}
-            onClick={() => setPage({ type: 'dashboard' })}
+            onClick={() => navigate({ type: 'dashboard' })}
           >
             <span className="nav-icon">🏠</span>
             <span className="nav-label">Dashboard</span>
@@ -161,7 +206,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
 
           <div
             className={`nav-item${page.type === 'mindmap' ? ' active' : ''}`}
-            onClick={() => setPage({ type: 'mindmap' })}
+            onClick={() => navigate({ type: 'mindmap' })}
           >
             <span className="nav-icon">🗺️</span>
             <span className="nav-label">Mind Map</span>
@@ -170,7 +215,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
           {profile.is_admin && (
             <div
               className={`nav-item${page.type === 'deadline' ? ' active' : ''}`}
-              onClick={() => setPage({ type: 'deadline' })}
+              onClick={() => navigate({ type: 'deadline' })}
             >
               <span className="nav-icon">📅</span>
               <span className="nav-label">Kelola Deadline</span>
@@ -179,7 +224,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
 
           <div
             className={`nav-item${page.type === 'forum' ? ' active' : ''}`}
-            onClick={() => setPage({ type: 'forum' })}
+            onClick={() => navigate({ type: 'forum' })}
           >
             <span className="nav-icon">💬</span>
             <span className="nav-label">Forum</span>
@@ -199,7 +244,6 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
       </aside>
 
       <main className="main-content">
-        {/* Masquerade banner */}
         {isMasq && (
           <div className="masq-banner">
             <span>
@@ -217,7 +261,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             profile={viewProfile}
             starsMap={starsMap}
             onNavigate={goToClass}
-            onManageDeadlines={() => setPage({ type: 'deadline' })}
+            onManageDeadlines={() => navigate({ type: 'deadline' })}
           />
         )}
         {page.type === 'class' && (
@@ -231,7 +275,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         )}
         {page.type === 'mindmap'  && <MindmapPage profile={viewProfile} />}
         {page.type === 'forum'    && <ForumPage profile={viewProfile} />}
-        {page.type === 'deadline' && <DeadlinePage />}
+        {page.type === 'deadline' && profile.is_admin && <DeadlinePage />}
       </main>
     </div>
   )
