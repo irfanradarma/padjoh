@@ -7,19 +7,32 @@ import MindmapPage from './pages/MindmapPage'
 import ForumPage from './pages/ForumPage'
 
 export default function MainApp({ session, profile, theme, toggleTheme }) {
-  const [page, setPage]         = useState({ type: 'dashboard' })
-  const [preOpen, setPreOpen]   = useState(false)
-  const [postOpen, setPostOpen] = useState(false)
-  const [starsMap, setStarsMap] = useState({})   // { sectionId: count } — student only
+  const [page, setPage]             = useState({ type: 'dashboard' })
+  const [preOpen, setPreOpen]       = useState(false)
+  const [postOpen, setPostOpen]     = useState(false)
+  const [starsMap, setStarsMap]     = useState({})
+  const [masqAs, setMasqAs]         = useState(null)   // { id, npm, name, class } | null
+  const [allStudents, setAllStudents] = useState([])
+
+  // Load student list for admin (used by masquerade picker)
+  useEffect(() => {
+    if (!profile.is_admin) return
+    supabase.rpc('get_students').then(({ data }) => setAllStudents(data ?? []))
+  }, [profile.is_admin])
+
+  // Load stars for student (or admin masquerading — uses admin's own account)
+  const viewProfile = masqAs
+    ? { ...masqAs, is_admin: false }
+    : profile
 
   useEffect(() => {
-    if (profile.is_admin) return
+    if (viewProfile.is_admin) { setStarsMap({}); return }
     supabase.rpc('get_my_stars').then(({ data }) => {
       const map = {}
       for (const row of data ?? []) map[row.section_id] = row.count
       setStarsMap(map)
     })
-  }, [profile.is_admin])
+  }, [viewProfile.is_admin, masqAs])
 
   function goToClass(sectionId) {
     const s = SECTIONS.find(s => s.id === sectionId)
@@ -28,8 +41,15 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
     setPage({ type: 'class', sectionId })
   }
 
+  function exitMasquerade() {
+    setMasqAs(null)
+    setPage({ type: 'dashboard' })
+  }
+
   const initials = (profile.name ?? profile.npm ?? '?')
     .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+
+  const isMasq = !!masqAs
 
   return (
     <div className="app">
@@ -48,9 +68,34 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
           <div className="sidebar-avatar">{initials}</div>
           <div style={{ minWidth: 0 }}>
             <div className="sidebar-user-name">{profile.name ?? profile.npm}</div>
-            <div className="sidebar-user-class">{profile.is_admin ? '👑 Administrator' : profile.class}</div>
+            <div className="sidebar-user-class">
+              {isMasq
+                ? <span style={{ color: 'var(--warning)' }}>👁️ Mode Uji</span>
+                : profile.is_admin ? '👑 Administrator' : profile.class}
+            </div>
           </div>
         </div>
+
+        {/* Admin: masquerade picker */}
+        {profile.is_admin && (
+          <div className="masq-picker-wrap">
+            <div className="masq-picker-label">Uji sebagai mahasiswa</div>
+            <select
+              className="masq-select"
+              value={masqAs?.id ?? ''}
+              onChange={e => {
+                const student = allStudents.find(s => s.id === e.target.value) ?? null
+                setMasqAs(student)
+                setPage({ type: 'dashboard' })
+              }}
+            >
+              <option value="">— Tampilan admin —</option>
+              {allStudents.map(s => (
+                <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <nav className="sidebar-nav">
           <div
@@ -79,7 +124,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
                 >
                   <span className="nav-child-num">{s.id}</span>
                   <span style={{ flex: 1 }}>{s.short}</span>
-                  {!profile.is_admin && starsMap[s.id] > 0 && (
+                  {!viewProfile.is_admin && starsMap[s.id] > 0 && (
                     <span className="nav-stars-badge">★{starsMap[s.id]}</span>
                   )}
                 </div>
@@ -105,7 +150,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
                 >
                   <span className="nav-child-num">{s.id}</span>
                   <span style={{ flex: 1 }}>{s.short}</span>
-                  {!profile.is_admin && starsMap[s.id] > 0 && (
+                  {!viewProfile.is_admin && starsMap[s.id] > 0 && (
                     <span className="nav-stars-badge">★{starsMap[s.id]}</span>
                   )}
                 </div>
@@ -143,20 +188,33 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
       </aside>
 
       <main className="main-content">
+        {/* Masquerade banner */}
+        {isMasq && (
+          <div className="masq-banner">
+            <span>
+              👁️ Mode uji — tampilan sebagai <strong>{masqAs.name}</strong>
+              <span className="masq-banner-class">{masqAs.class} · {masqAs.npm}</span>
+            </span>
+            <button className="masq-exit-btn" onClick={exitMasquerade}>
+              ✕ Keluar dari mode uji
+            </button>
+          </div>
+        )}
+
         {page.type === 'dashboard' && (
-          <DashboardPage profile={profile} starsMap={starsMap} onNavigate={goToClass} />
+          <DashboardPage profile={viewProfile} starsMap={starsMap} onNavigate={goToClass} />
         )}
         {page.type === 'class' && (
           <ClassPage
             key={page.sectionId}
             sectionId={page.sectionId}
             session={session}
-            profile={profile}
+            profile={viewProfile}
             starsMap={starsMap}
           />
         )}
-        {page.type === 'mindmap' && <MindmapPage profile={profile} />}
-        {page.type === 'forum'   && <ForumPage profile={profile} />}
+        {page.type === 'mindmap' && <MindmapPage profile={viewProfile} />}
+        {page.type === 'forum'   && <ForumPage profile={viewProfile} />}
       </main>
     </div>
   )
