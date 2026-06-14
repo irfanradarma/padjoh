@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import ClassPage from './pages/ClassPage'
 import MindmapPage from './pages/MindmapPage'
 import ForumPage from './pages/ForumPage'
+import DeadlinePage from './pages/DeadlinePage'
 
 export default function MainApp({ session, profile, theme, toggleTheme }) {
   const [page, setPage]             = useState({ type: 'dashboard' })
@@ -166,6 +167,16 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             <span className="nav-label">Mind Map</span>
           </div>
 
+          {profile.is_admin && (
+            <div
+              className={`nav-item${page.type === 'deadline' ? ' active' : ''}`}
+              onClick={() => setPage({ type: 'deadline' })}
+            >
+              <span className="nav-icon">📅</span>
+              <span className="nav-label">Kelola Deadline</span>
+            </div>
+          )}
+
           <div
             className={`nav-item${page.type === 'forum' ? ' active' : ''}`}
             onClick={() => setPage({ type: 'forum' })}
@@ -202,7 +213,12 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         )}
 
         {page.type === 'dashboard' && (
-          <DashboardPage profile={viewProfile} starsMap={starsMap} onNavigate={goToClass} />
+          <DashboardPage
+            profile={viewProfile}
+            starsMap={starsMap}
+            onNavigate={goToClass}
+            onManageDeadlines={() => setPage({ type: 'deadline' })}
+          />
         )}
         {page.type === 'class' && (
           <ClassPage
@@ -213,8 +229,9 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             starsMap={starsMap}
           />
         )}
-        {page.type === 'mindmap' && <MindmapPage profile={viewProfile} />}
-        {page.type === 'forum'   && <ForumPage profile={viewProfile} />}
+        {page.type === 'mindmap'  && <MindmapPage profile={viewProfile} />}
+        {page.type === 'forum'    && <ForumPage profile={viewProfile} />}
+        {page.type === 'deadline' && <DeadlinePage />}
       </main>
     </div>
   )

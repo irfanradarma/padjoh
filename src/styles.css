@@ -988,3 +988,103 @@ body {
 }
 .arc-node:hover .arc-node-edit-btn { opacity: 0.8; }
 .arc-node-edit-btn:hover { opacity: 1 !important; }
+
+/* ── Dashboard — section heading row ────────────────────── */
+.section-heading-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+}
+.section-heading-row .section-heading { margin-bottom: 0; }
+
+/* ── Dashboard — deadline card expanded desc ─────────────── */
+.deadline-item { display: flex; flex-direction: column; }
+.deadline-item-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; cursor: pointer;
+}
+.dl-dash-item { border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); margin-bottom: 8px; overflow: hidden; }
+.dl-dash-item.expanded { border-color: var(--accent); }
+.dl-dash-desc {
+  padding: 0 16px 14px 44px; font-size: 13px; color: var(--muted);
+  line-height: 1.6; border-top: 1px solid var(--border); padding-top: 10px;
+  white-space: pre-wrap;
+}
+
+/* ── Deadline Management Page ───────────────────────────── */
+.dl-form-card {
+  background: var(--surface2); border: 1px solid var(--accent);
+  border-radius: 12px; padding: 20px; margin-bottom: 24px;
+  animation: fadeSlideIn 0.18s ease;
+}
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.dl-form-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+.dl-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dl-form-group { display: flex; flex-direction: column; gap: 5px; }
+.dl-span2 { grid-column: span 2; }
+.dl-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.dl-input {
+  padding: 9px 12px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 13px; font-family: inherit;
+  outline: none; transition: border-color 0.15s;
+}
+.dl-input:focus { border-color: var(--accent); }
+.dl-textarea {
+  padding: 9px 12px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 13px; font-family: inherit;
+  outline: none; transition: border-color 0.15s; resize: vertical; line-height: 1.5;
+}
+.dl-textarea:focus { border-color: var(--accent); }
+.dl-form-error { margin-top: 10px; color: var(--danger); font-size: 13px; }
+.dl-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* Deadline list */
+.dl-list { display: flex; flex-direction: column; gap: 8px; }
+.dl-item {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; transition: border-color 0.15s;
+}
+.dl-item:hover { border-color: rgba(99,102,241,0.35); }
+.dl-item-main {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; cursor: pointer;
+}
+.dl-item-info { flex: 1; min-width: 0; }
+.dl-item-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.dl-item-meta { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
+.dl-item-desc {
+  padding: 10px 16px 14px 16px; font-size: 13px; color: var(--muted);
+  border-top: 1px solid var(--border); white-space: pre-wrap; line-height: 1.6;
+}
+.dl-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.dl-chevron { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+
+/* Status badges */
+.dl-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 20px; flex-shrink: 0; letter-spacing: 0.04em;
+}
+.badge-past   { background: rgba(127,127,127,0.15); color: var(--muted); }
+.badge-urgent { background: rgba(248,81,73,0.18);   color: var(--danger); }
+.badge-soon   { background: rgba(210,153,34,0.18);  color: var(--warning); }
+.badge-ok     { background: rgba(63,185,80,0.15);   color: var(--success); }
+
+/* btn-ghost */
+.btn-ghost {
+  padding: 8px 16px; background: transparent; border: 1px solid var(--border);
+  border-radius: 8px; color: var(--muted); font-size: 13px; font-family: inherit;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+/* btn-sm-danger */
+.btn-sm-danger { color: var(--danger) !important; border-color: rgba(248,81,73,0.3) !important; }
+.btn-sm-danger:hover { background: rgba(248,81,73,0.12) !important; }
+
+@media (max-width: 600px) {
+  .dl-form-grid { grid-template-columns: 1fr; }
+  .dl-span2 { grid-column: span 1; }
+  .dl-item-actions { flex-direction: column; }
+}

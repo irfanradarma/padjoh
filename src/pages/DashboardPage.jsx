@@ -2,27 +2,20 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { SECTIONS } from '../sections'
 
-export default function DashboardPage({ profile, starsMap = {}, onNavigate }) {
+export default function DashboardPage({ profile, starsMap = {}, onNavigate, onManageDeadlines }) {
   const [assignments, setAssignments] = useState([])
-  const [noteCount, setNoteCount] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [noteCount, setNoteCount]     = useState(0)
+  const [loading, setLoading]         = useState(true)
+  const [expanded, setExpanded]       = useState(null)
 
   useEffect(() => {
     async function load() {
       const [{ data: a }, { data: n }] = await Promise.all([
-        supabase
-          .from('assignments')
-          .select('*')
-          .gte('due_date', new Date().toISOString())
-          .order('due_date', { ascending: true })
-          .limit(6),
-        supabase
-          .from('notes')
-          .select('id')
-          .neq('content', ''),
+        supabase.rpc('get_assignments'),
+        supabase.rpc('get_my_note_count'),
       ])
       setAssignments(a ?? [])
-      setNoteCount(n?.length ?? 0)
+      setNoteCount(n ?? 0)
       setLoading(false)
     }
     load()
@@ -38,8 +31,12 @@ export default function DashboardPage({ profile, starsMap = {}, onNavigate }) {
   function fmtDate(dateStr) {
     return new Date(dateStr).toLocaleDateString('id-ID', {
       day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     })
   }
+
+  const totalStars = Object.values(starsMap).reduce((a, b) => a + b, 0)
+  const starredSessions = Object.keys(starsMap).length
 
   return (
     <div className="page-content">
@@ -62,21 +59,24 @@ export default function DashboardPage({ profile, starsMap = {}, onNavigate }) {
         {!profile.is_admin ? (
           <div className="stat-card">
             <div className="stat-label">Total Bintang ★</div>
-            <div className="stat-value" style={{ color: '#f59e0b' }}>
-              {Object.values(starsMap).reduce((a, b) => a + b, 0)}
-            </div>
-            <div className="stat-sub">dari {Object.keys(starsMap).length} sesi</div>
+            <div className="stat-value" style={{ color: '#f59e0b' }}>{totalStars}</div>
+            <div className="stat-sub">dari {starredSessions} sesi</div>
           </div>
         ) : (
           <div className="stat-card">
-            <div className="stat-label">Deadline Mendatang</div>
+            <div className="stat-label">Deadline Aktif</div>
             <div className="stat-value">{assignments.length}</div>
-            <div className="stat-sub">tugas aktif</div>
+            <div className="stat-sub">tugas mendatang</div>
           </div>
         )}
       </div>
 
-      <p className="section-heading">Deadline Terdekat</p>
+      <div className="section-heading-row">
+        <p className="section-heading" style={{ margin: 0 }}>Deadline Terdekat</p>
+        {profile.is_admin && (
+          <button className="btn-sm btn-sm-primary" onClick={onManageDeadlines}>⚙ Kelola Deadline</button>
+        )}
+      </div>
 
       {loading ? (
         <div className="empty-state"><p>Memuat…</p></div>
@@ -84,25 +84,32 @@ export default function DashboardPage({ profile, starsMap = {}, onNavigate }) {
         <div className="empty-state">
           <div className="icon">📅</div>
           <p>Tidak ada deadline mendatang</p>
+          {profile.is_admin && (
+            <button className="btn-primary" style={{ marginTop: 12 }} onClick={onManageDeadlines}>+ Tambah Deadline</button>
+          )}
         </div>
       ) : (
         <div className="deadline-list">
           {assignments.map(a => {
             const u = urgency(a.due_date)
             const section = SECTIONS.find(s => s.id === a.section_id)
+            const isExp = expanded === a.id
             return (
-              <div
-                key={a.id}
-                className="deadline-item"
-                style={{ cursor: 'pointer' }}
-                onClick={() => section && onNavigate(section.id)}
-              >
-                <div className={`deadline-dot${u ? ` ${u}` : ''}`} />
-                <div className="deadline-info">
-                  <div className="deadline-title">{a.title}</div>
-                  <div className="deadline-meta">{section?.title ?? `Sesi ${a.section_id}`}</div>
+              <div key={a.id} className={`deadline-item dl-dash-item${isExp ? ' expanded' : ''}`}>
+                <div className="deadline-item-row" onClick={() => a.description ? setExpanded(isExp ? null : a.id) : section && onNavigate(section.id)}>
+                  <div className={`deadline-dot${u ? ` ${u}` : ''}`} />
+                  <div className="deadline-info">
+                    <div className="deadline-title">{a.title}</div>
+                    <div className="deadline-meta">
+                      {section && <span style={{ marginRight: 8 }}>📚 Sesi {section.id}: {section.short}</span>}
+                      {a.description && <span style={{ color: 'var(--muted)', fontSize: 11 }}>{isExp ? '▲ sembunyikan' : '▼ lihat detail'}</span>}
+                    </div>
+                  </div>
+                  <div className={`deadline-date${u ? ` ${u}` : ''}`}>{fmtDate(a.due_date)}</div>
                 </div>
-                <div className={`deadline-date${u ? ` ${u}` : ''}`}>{fmtDate(a.due_date)}</div>
+                {isExp && a.description && (
+                  <div className="dl-dash-desc">{a.description}</div>
+                )}
               </div>
             )
           })}
