@@ -869,3 +869,122 @@ body {
   cursor: pointer; outline: none; transition: border-color 0.15s;
 }
 .mm-student-select:focus { border-color: var(--accent); }
+
+/* ── Mind Map — sheet topbar ──────────────────────────────── */
+.mm-sheet-topbar {
+  display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.mm-sheet-empty {
+  text-align: center; color: var(--muted); padding: 24px; font-size: 13px;
+}
+.mm-row-num {
+  color: var(--muted); font-size: 11px; text-align: center; user-select: none;
+}
+
+/* ── Mind Map — map outer + toolbar ─────────────────────────*/
+.mm-map-outer {
+  position: relative; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.mm-map-outer.mm-map-fullscreen {
+  position: fixed; inset: 0; z-index: 1200;
+  border-radius: 0; border: none;
+  display: flex; flex-direction: column;
+}
+.mm-map-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  background: var(--surface2); flex-shrink: 0;
+}
+.mm-map-content {
+  padding: 16px; overflow: auto;
+}
+.mm-map-fullscreen .mm-map-content {
+  flex: 1; padding: 20px;
+}
+.mm-style-picker { display: flex; gap: 6px; }
+.mm-style-btn {
+  padding: 4px 12px; font-size: 12px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--muted); cursor: pointer; transition: all 0.15s;
+}
+.mm-style-btn.active, .mm-style-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.mm-fullscreen-btn {
+  font-size: 18px; background: none; border: 1px solid var(--border); border-radius: 6px;
+  padding: 3px 8px; cursor: pointer; color: var(--muted); transition: all 0.15s; line-height: 1;
+}
+.mm-fullscreen-btn:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── Mind Map — List style: node edit button ─────────────── */
+.mm-node-edit-btn {
+  background: none; border: none; cursor: pointer; padding: 0 4px; font-size: 13px;
+  opacity: 0; transition: opacity 0.15s; line-height: 1; flex-shrink: 0;
+}
+.mm-node:hover .mm-node-edit-btn { opacity: 1; }
+
+/* ── Mind Map — Edit panel ───────────────────────────────── */
+.mm-edit-panel {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: var(--surface2); border-top: 1px solid var(--border);
+  z-index: 100; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
+  animation: slideUpPanel 0.18s ease;
+}
+@keyframes slideUpPanel {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.mm-edit-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600;
+}
+.mm-edit-close {
+  background: none; border: none; cursor: pointer; font-size: 16px;
+  color: var(--muted); transition: color 0.15s;
+}
+.mm-edit-close:hover { color: var(--danger); }
+.mm-edit-body { padding: 14px 16px 16px; }
+.mm-edit-label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.mm-edit-input {
+  display: block; width: 100%; padding: 8px 10px; font-family: inherit; font-size: 13px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+  outline: none; transition: border-color 0.15s;
+}
+.mm-edit-input:focus { border-color: var(--accent); }
+.mm-edit-textarea {
+  display: block; width: 100%; padding: 8px 10px; font-family: inherit; font-size: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+  outline: none; resize: vertical; transition: border-color 0.15s;
+}
+.mm-edit-textarea:focus { border-color: var(--accent); }
+.mm-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+/* ── Arc Map ─────────────────────────────────────────────── */
+.arc-scroll-wrap { overflow: auto; padding: 12px 0 12px 12px; }
+.arc-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+.arc-node {
+  position: absolute; display: flex; align-items: center; gap: 4px;
+  border-radius: 8px; border: 1px solid; padding: 0 8px;
+  font-size: 12px; font-weight: 500; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35); transition: box-shadow 0.15s;
+}
+.arc-node:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.4); }
+.arc-node-title {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  line-height: 1.2; cursor: pointer; user-select: none;
+}
+.arc-node-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.arc-node-badge {
+  font-size: 10px; background: rgba(255,255,255,0.18); border-radius: 10px;
+  padding: 0 5px; line-height: 16px;
+}
+.arc-node-toggle {
+  cursor: pointer; font-size: 14px; font-weight: 700; line-height: 1;
+  opacity: 0.7; transition: opacity 0.15s; user-select: none;
+}
+.arc-node-toggle:hover { opacity: 1; }
+.arc-node-edit-btn {
+  background: none; border: none; cursor: pointer; font-size: 11px; padding: 0;
+  opacity: 0; transition: opacity 0.15s; line-height: 1;
+}
+.arc-node:hover .arc-node-edit-btn { opacity: 0.8; }
+.arc-node-edit-btn:hover { opacity: 1 !important; }
