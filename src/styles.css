@@ -271,15 +271,22 @@ body {
   padding: 14px 16px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
 }
-.deadline-dot        { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px; }
-.deadline-dot.urgent { background: var(--danger); }
-.deadline-dot.soon   { background: var(--warning); }
-.deadline-info       { flex: 1; }
-.deadline-title      { font-size: 14px; font-weight: 500; color: var(--text); }
-.deadline-meta       { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.deadline-date       { font-size: 12px; color: var(--muted); white-space: nowrap; }
-.deadline-date.urgent { color: var(--danger); font-weight: 600; }
-.deadline-date.soon   { color: var(--warning); font-weight: 600; }
+.deadline-dot          { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px; }
+.deadline-dot.urgent   { background: var(--danger); }
+.deadline-dot.soon     { background: var(--warning); }
+.deadline-dot.overdue  { background: var(--danger); box-shadow: 0 0 0 3px rgba(248,81,73,0.2); }
+.deadline-info         { flex: 1; }
+.deadline-title        { font-size: 14px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.deadline-meta         { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.deadline-date         { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.deadline-date.urgent  { color: var(--danger); font-weight: 600; }
+.deadline-date.soon    { color: var(--warning); font-weight: 600; }
+.deadline-date.overdue { color: var(--danger); font-weight: 700; }
+.deadline-overdue-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  background: rgba(248,81,73,0.15); color: var(--danger);
+  padding: 2px 7px; border-radius: 10px; white-space: nowrap;
+}
 
 /* ── Tabs ──────────────────────────────────────────────────── */
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
@@ -1348,4 +1355,59 @@ body {
   .tab-btn { padding: 10px 14px; }
   .star-btn { font-size: 24px; padding: 2px 4px; }
   .forum-comment-toggle { padding: 8px 6px; }
+}
+
+/* ── Google Sheets exercise panel ───────────────────────────── */
+.sheet-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden; margin-bottom: 24px;
+}
+.sheet-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  background: var(--surface2); flex-wrap: wrap; gap: 6px;
+}
+.sheet-panel-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.sheet-panel-sub   { font-size: 12px; color: var(--muted); }
+.sheet-meta {
+  padding: 12px 18px; font-size: 13px; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.sheet-meta strong { color: var(--text); }
+.sheet-not-found {
+  padding: 20px 18px; font-size: 13px; color: var(--muted); line-height: 1.6;
+}
+.sheet-not-found strong { color: var(--text); }
+.sheet-status {
+  padding: 24px; text-align: center; font-size: 13px; color: var(--muted);
+}
+.sheet-err { color: var(--danger); }
+.sheet-file-link {
+  display: inline-block; color: var(--accent); text-decoration: none;
+  font-size: 13px; padding: 12px 18px;
+}
+.sheet-file-link:hover { text-decoration: underline; }
+
+/* PDF preview */
+.sheet-pdf-wrap { display: flex; flex-direction: column; }
+.sheet-pdf-wrap.sheet-pdf-fullscreen {
+  position: fixed; inset: 0; z-index: 1300;
+  background: var(--bg); display: flex; flex-direction: column;
+}
+.sheet-pdf-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  background: var(--surface2); gap: 8px; flex-shrink: 0;
+}
+.sheet-pdf-label { font-size: 12px; color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-pdf-frame {
+  width: 100%; flex: 1;
+  height: 70vh; min-height: 480px;
+  border: none; display: block;
+  background: var(--surface2);
+}
+.sheet-pdf-fullscreen .sheet-pdf-frame { height: 100%; min-height: 0; }
+
+@media (max-width: 768px) {
+  .sheet-pdf-frame { height: 55vh; min-height: 320px; }
 }

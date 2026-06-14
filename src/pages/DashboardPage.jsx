@@ -23,6 +23,7 @@ export default function DashboardPage({ profile, starsMap = {}, onNavigate, onMa
 
   function urgency(dateStr) {
     const days = (new Date(dateStr) - Date.now()) / 86_400_000
+    if (days < 0)  return 'overdue'
     if (days <= 2) return 'urgent'
     if (days <= 7) return 'soon'
     return ''
@@ -99,7 +100,10 @@ export default function DashboardPage({ profile, starsMap = {}, onNavigate, onMa
                 <div className="deadline-item-row" onClick={() => a.description ? setExpanded(isExp ? null : a.id) : section && onNavigate(section.id)}>
                   <div className={`deadline-dot${u ? ` ${u}` : ''}`} />
                   <div className="deadline-info">
-                    <div className="deadline-title">{a.title}</div>
+                    <div className="deadline-title">
+                      {a.title}
+                      {u === 'overdue' && <span className="deadline-overdue-badge">Terlambat</span>}
+                    </div>
                     <div className="deadline-meta">
                       {section && <span style={{ marginRight: 8 }}>📚 Sesi {section.id}: {section.short}</span>}
                       {a.description && <span style={{ color: 'var(--muted)', fontSize: 11 }}>{isExp ? '▲ sembunyikan' : '▼ lihat detail'}</span>}

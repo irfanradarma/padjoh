@@ -2,13 +2,181 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../supabaseClient'
 
 function fmtDate(str) {
-  return new Date(str).toLocaleDateString('id-ID', {
-    day: 'numeric', month: 'short', year: 'numeric',
+  if (!str) return '—'
+  const d = new Date(str)
+  return isNaN(d) ? str : d.toLocaleDateString('id-ID', {
+    day: 'numeric', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
 }
 
-// ── Student: own uploads ────────────────────────────────────
+// ── Google Sheets panel (section 2 only) ─────────────────────
+const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/1J-gI4RSr2eZRdA7xj7vHZ9uXXLCDwyXIM-N1oSH_6_Q/export?format=csv&gid=0'
+
+function parseCSV(text) {
+  const rows = []
+  for (const line of text.trim().split('\n').slice(1)) {
+    if (!line.trim()) continue
+    // Handle quoted CSV fields
+    const cols = []
+    let cur = '', inQ = false
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = '' }
+      else cur += ch
+    }
+    cols.push(cur.trim())
+    const npm = (cols[1] ?? '').trim()
+    const url = (cols[2] ?? '').trim()
+    if (npm) rows.push({ timestamp: cols[0] ?? '', npm, url })
+  }
+  return rows
+}
+
+function drivePreview(url) {
+  if (!url) return null
+  const m = url.match(/\/file\/d\/([^\/\?&]+)/)
+  if (m) return `https://drive.google.com/file/d/${m[1]}/preview`
+  const m2 = url.match(/[?&]id=([^&]+)/)
+  if (m2) return `https://drive.google.com/file/d/${m2[1]}/preview`
+  return null
+}
+
+function useSheetData() {
+  const [rows, setRows] = useState(null)
+  const [err, setErr]   = useState(null)
+  useEffect(() => {
+    fetch(SHEET_CSV)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text() })
+      .then(text => setRows(parseCSV(text)))
+      .catch(e => setErr(e.message))
+  }, [])
+  return { rows, err }
+}
+
+function PdfPreview({ url, label }) {
+  const [fullscreen, setFullscreen] = useState(false)
+  const preview = drivePreview(url)
+  if (!preview) return (
+    <a href={url} target="_blank" rel="noreferrer" className="sheet-file-link">↗ Buka dokumen</a>
+  )
+  return (
+    <div className={`sheet-pdf-wrap${fullscreen ? ' sheet-pdf-fullscreen' : ''}`}>
+      <div className="sheet-pdf-toolbar">
+        <span className="sheet-pdf-label">{label}</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a href={url} target="_blank" rel="noreferrer" className="btn-sm">↗ Tab baru</a>
+          <button className="btn-sm" onClick={() => setFullscreen(x => !x)}>
+            {fullscreen ? '⊡ Kecilkan' : '⊞ Perbesar'}
+          </button>
+        </div>
+      </div>
+      <iframe
+        src={preview}
+        className="sheet-pdf-frame"
+        title={label}
+        allowFullScreen
+      />
+    </div>
+  )
+}
+
+function StudentSheetExercise({ profile }) {
+  const { rows, err } = useSheetData()
+  if (err)   return <div className="sheet-status sheet-err">⚠ Gagal memuat data Google Forms: {err}</div>
+  if (!rows) return <div className="sheet-status">Memuat data Google Forms…</div>
+
+  const entry = rows.find(r => r.npm === profile.npm)
+
+  return (
+    <div className="sheet-panel">
+      <div className="sheet-panel-header">
+        <span className="sheet-panel-title">📋 Laporan dari Google Forms</span>
+        <span className="sheet-panel-sub">Sesi 2 — IT Governance Audit</span>
+      </div>
+      {entry ? (
+        <>
+          <div className="sheet-meta">
+            🕐 Dikumpulkan: <strong>{fmtDate(entry.timestamp)}</strong>
+          </div>
+          <PdfPreview url={entry.url} label={`Laporan ${profile.npm}`} />
+        </>
+      ) : (
+        <div className="sheet-not-found">
+          NPM <strong>{profile.npm}</strong> tidak ditemukan dalam data Google Forms.
+          Hubungi dosen jika Anda sudah mengumpulkan.
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AdminSheetRow({ row, studentName, open, onToggle }) {
+  return (
+    <div className={`student-section${open ? ' open' : ''}`}>
+      <div className="student-section-header" onClick={onToggle}>
+        <div>
+          <div className="student-section-name">{studentName ?? row.npm}</div>
+          <div className="student-section-meta">{row.npm} · {fmtDate(row.timestamp)}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {row.url
+            ? <span style={{ fontSize: 11, color: 'var(--accent)' }}>Ada laporan</span>
+            : <span style={{ fontSize: 11, color: 'var(--muted)' }}>Tanpa file</span>
+          }
+          <span className="student-section-chevron">›</span>
+        </div>
+      </div>
+      {open && (
+        <div className="student-section-body">
+          {row.url
+            ? <PdfPreview url={row.url} label={`Laporan ${row.npm}`} />
+            : <div className="student-section-empty">Tidak ada URL dokumen.</div>
+          }
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AdminSheetExercise({ students, selectedStudentId }) {
+  const { rows, err } = useSheetData()
+  const [openIdx, setOpenIdx] = useState(null)
+
+  if (err)   return <div className="sheet-status sheet-err">⚠ Gagal memuat data Google Forms: {err}</div>
+  if (!rows) return <div className="sheet-status">Memuat data Google Forms…</div>
+
+  const npmToName = {}
+  for (const s of students) npmToName[s.npm] = s.name
+
+  const selectedNpm = students.find(s => s.id === selectedStudentId)?.npm
+  const display = selectedStudentId ? rows.filter(r => r.npm === selectedNpm) : rows
+
+  return (
+    <div className="sheet-panel">
+      <div className="sheet-panel-header">
+        <span className="sheet-panel-title">📋 Laporan dari Google Forms</span>
+        <span className="sheet-panel-sub">{rows.length} entri</span>
+      </div>
+      <div className="admin-content-list" style={{ marginTop: 12 }}>
+        {display.map((row, i) => (
+          <AdminSheetRow
+            key={i}
+            row={row}
+            studentName={npmToName[row.npm]}
+            open={openIdx === i}
+            onToggle={() => setOpenIdx(openIdx === i ? null : i)}
+          />
+        ))}
+        {display.length === 0 && (
+          <div className="empty-state"><p>Tidak ada entri yang sesuai filter.</p></div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Regular upload: student own files ────────────────────────
 function StudentExerciseView({ sectionId, userId }) {
   const [files, setFiles]         = useState([])
   const [uploading, setUploading] = useState(false)
@@ -28,9 +196,7 @@ function StudentExerciseView({ sectionId, userId }) {
     const { error: storageErr } = await supabase.storage.from('exercises').upload(path, file)
     if (storageErr) { alert(storageErr.message); setUploading(false); return }
     const { error: dbErr } = await supabase.rpc('save_exercise', {
-      p_section_id: sectionId,
-      p_file_name:  file.name,
-      p_file_path:  path,
+      p_section_id: sectionId, p_file_name: file.name, p_file_path: path,
     })
     if (dbErr) { alert(dbErr.message); setUploading(false); return }
     await loadFiles()
@@ -100,7 +266,7 @@ function StudentExerciseView({ sectionId, userId }) {
   )
 }
 
-// ── Admin: collapsible per-student view ─────────────────────
+// ── Admin: collapsible per-student regular uploads ────────────
 function StudentExerciseSection({ student, files }) {
   const [open, setOpen] = useState(false)
 
@@ -176,11 +342,7 @@ function AdminExerciseView({ sectionId, selectedStudentId, students }) {
   return (
     <div className="admin-content-list">
       {displayStudents.map(s => (
-        <StudentExerciseSection
-          key={s.id}
-          student={s}
-          files={filesByUser[s.id] ?? []}
-        />
+        <StudentExerciseSection key={s.id} student={s} files={filesByUser[s.id] ?? []} />
       ))}
       {displayStudents.length === 0 && (
         <div className="empty-state"><p>Tidak ada mahasiswa yang sesuai filter.</p></div>
@@ -191,8 +353,25 @@ function AdminExerciseView({ sectionId, selectedStudentId, students }) {
 
 // ── Export ──────────────────────────────────────────────────
 export default function ExerciseTab({ sectionId, userId, profile, selectedStudentId, students }) {
+  const isSection2 = sectionId === 2
+
   if (profile.is_admin) {
-    return <AdminExerciseView sectionId={sectionId} selectedStudentId={selectedStudentId} students={students} />
+    return (
+      <div>
+        {isSection2 && (
+          <AdminSheetExercise students={students} selectedStudentId={selectedStudentId} />
+        )}
+        {!isSection2 && (
+          <AdminExerciseView sectionId={sectionId} selectedStudentId={selectedStudentId} students={students} />
+        )}
+      </div>
+    )
   }
-  return <StudentExerciseView sectionId={sectionId} userId={userId} />
+
+  return (
+    <div>
+      {isSection2 && <StudentSheetExercise profile={profile} />}
+      <StudentExerciseView sectionId={sectionId} userId={userId} />
+    </div>
+  )
 }
