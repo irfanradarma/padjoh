@@ -155,7 +155,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             starsMap={starsMap}
           />
         )}
-        {page.type === 'mindmap' && <MindmapPage />}
+        {page.type === 'mindmap' && <MindmapPage profile={profile} />}
         {page.type === 'forum'   && <ForumPage profile={profile} />}
       </main>
     </div>
