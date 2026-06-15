@@ -413,70 +413,311 @@ function RadialMap({ tree, onEdit, centerLabel = '' }) {
   )
 }
 
-// ── Sheet view ────────────────────────────────────────────────
-function SheetView({ rows, onAdd, onDelete, onUpdate, onSave, saving, dirty, readOnly, onImport, onTemplate }) {
-  const fileRef = useRef()
+// ── Spreadsheet view ─────────────────────────────────────────
+const SS_COLS    = ['level1', 'level2', 'level3', 'level4', 'level5', 'summary']
+const SS_HEADERS = ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Summary']
+const SS_WIDTHS  = ['18%', '18%', '16%', '14%', '12%', '22%']
+const MIN_ROWS   = 50
+
+function padGrid(rows) {
+  const g = (rows ?? []).map(r => ({ ...r }))
+  while (g.length < MIN_ROWS) g.push(emptyRow())
+  return g
+}
+function trimGrid(grid) {
+  let last = grid.length - 1
+  while (last > 0 && SS_COLS.every(k => !(grid[last][k] ?? '').trim())) last--
+  return grid.slice(0, last + 1)
+}
+
+function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
+  const [grid, setGrid]       = useState(() => padGrid(initialRows))
+  const [dirty, setDirty]     = useState(false)
+  const [anchor, setAnchor]   = useState({ r: 0, c: 0 })
+  const [focus, setFocus]     = useState({ r: 0, c: 0 })
+  const [editing, setEditing] = useState(false)
+
+  const tabbing      = useRef(false)  // suppress blur during Tab/Enter cell navigation
+  const dragging     = useRef(false)
+  const containerRef = useRef()
+  const inputRefs    = useRef({})     // `${r}_${c}` → <input>
+  const fileRef      = useRef()
+  const prevRows     = useRef(initialRows)
+
+  // Sync when parent pushes new rows (realtime update or domain change)
+  useEffect(() => {
+    if (prevRows.current === initialRows) return
+    prevRows.current = initialRows
+    setGrid(padGrid(initialRows))
+    setDirty(false)
+    setEditing(false)
+  }, [initialRows])
+
+  // Focus the active input after anchor/editing change
+  useEffect(() => {
+    if (!editing) return
+    const input = inputRefs.current[`${anchor.r}_${anchor.c}`]
+    if (input) {
+      input.focus()
+      const len = input.value.length
+      input.setSelectionRange(len, len)
+      tabbing.current = false
+    }
+  }, [editing, anchor.r, anchor.c])
+
+  const sel = {
+    r1: Math.min(anchor.r, focus.r), c1: Math.min(anchor.c, focus.c),
+    r2: Math.max(anchor.r, focus.r), c2: Math.max(anchor.c, focus.c),
+  }
+  const inSel = (r, c) => r >= sel.r1 && r <= sel.r2 && c >= sel.c1 && c <= sel.c2
+
+  function moveTo(r, c, extend = false) {
+    const nr = Math.max(0, Math.min(r, grid.length - 1))
+    const nc = Math.max(0, Math.min(c, SS_COLS.length - 1))
+    if (extend) { setFocus({ r: nr, c: nc }) }
+    else { setAnchor({ r: nr, c: nc }); setFocus({ r: nr, c: nc }) }
+  }
+
+  function handleMouseDown(e, r, c) {
+    if (editing && anchor.r === r && anchor.c === c) return
+    e.preventDefault()
+    setEditing(false)
+    if (e.shiftKey) { setFocus({ r, c }) }
+    else { setAnchor({ r, c }); setFocus({ r, c }); dragging.current = true }
+    containerRef.current?.focus()
+  }
+
+  function handleMouseEnter(r, c) { if (dragging.current) setFocus({ r, c }) }
+
+  function handleDoubleClick(r, c) {
+    if (readOnly) return
+    setAnchor({ r, c }); setFocus({ r, c }); setEditing(true)
+  }
+
+  function clearSel() {
+    const g = grid.map(row => ({ ...row }))
+    for (let r = sel.r1; r <= sel.r2; r++)
+      for (let c = sel.c1; c <= sel.c2; c++)
+        g[r] = { ...g[r], [SS_COLS[c]]: '' }
+    setGrid(g); setDirty(true)
+  }
+
+  function handleKeyDown(e) {
+    if (editing) {
+      switch (e.key) {
+        case 'Escape':
+          e.preventDefault(); setEditing(false); containerRef.current?.focus(); return
+        case 'Tab': {
+          e.preventDefault(); tabbing.current = true
+          let nr = anchor.r, nc = e.shiftKey ? anchor.c - 1 : anchor.c + 1
+          if (nc < 0) { nr--; nc = SS_COLS.length - 1 }
+          else if (nc >= SS_COLS.length) { nr++; nc = 0 }
+          nr = Math.max(0, Math.min(nr, grid.length - 1))
+          nc = Math.max(0, Math.min(nc, SS_COLS.length - 1))
+          setAnchor({ r: nr, c: nc }); setFocus({ r: nr, c: nc }); return
+        }
+        case 'Enter':
+          if (!e.shiftKey) {
+            e.preventDefault(); tabbing.current = true
+            const nr = Math.min(anchor.r + 1, grid.length - 1)
+            setAnchor({ r: nr, c: anchor.c }); setFocus({ r: nr, c: anchor.c })
+          }
+          return
+        default: return
+      }
+    }
+    // Not editing:
+    switch (e.key) {
+      case 'ArrowUp':    e.preventDefault(); moveTo(anchor.r - 1, anchor.c, e.shiftKey); break
+      case 'ArrowDown':  e.preventDefault(); moveTo(anchor.r + 1, anchor.c, e.shiftKey); break
+      case 'ArrowLeft':  e.preventDefault(); moveTo(anchor.r, anchor.c - 1, e.shiftKey); break
+      case 'ArrowRight': e.preventDefault(); moveTo(anchor.r, anchor.c + 1, e.shiftKey); break
+      case 'Tab':
+        e.preventDefault(); moveTo(anchor.r, e.shiftKey ? anchor.c - 1 : anchor.c + 1); break
+      case 'Enter': case 'F2':
+        if (!readOnly) { e.preventDefault(); setEditing(true) } break
+      case 'Delete': case 'Backspace':
+        if (!readOnly) { e.preventDefault(); clearSel() } break
+      case 'Escape': setFocus({ ...anchor }); break
+      default:
+        if (!readOnly && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+          const g = grid.map(row => ({ ...row }))
+          g[anchor.r] = { ...g[anchor.r], [SS_COLS[anchor.c]]: e.key }
+          setGrid(g); setDirty(true); setEditing(true)
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+          e.preventDefault()
+          setAnchor({ r: 0, c: 0 }); setFocus({ r: grid.length - 1, c: SS_COLS.length - 1 })
+        }
+    }
+  }
+
+  function handleCopy(e) {
+    if (editing && sel.r1 === sel.r2 && sel.c1 === sel.c2) return
+    e.preventDefault()
+    const lines = []
+    for (let r = sel.r1; r <= sel.r2; r++) {
+      const cells = []
+      for (let c = sel.c1; c <= sel.c2; c++) cells.push(grid[r]?.[SS_COLS[c]] ?? '')
+      lines.push(cells.join('\t'))
+    }
+    e.clipboardData.setData('text/plain', lines.join('\n'))
+  }
+
+  function handlePaste(e) {
+    if (readOnly) return
+    const text = e.clipboardData.getData('text/plain')
+    const pasteRows = text.split(/\r?\n/)
+    if (pasteRows[pasteRows.length - 1] === '') pasteRows.pop()
+    const parsed = pasteRows.map(l => l.split('\t'))
+    if (editing && parsed.length === 1 && parsed[0].length === 1) return
+    e.preventDefault()
+    const g = grid.map(row => ({ ...row }))
+    parsed.forEach((pRow, dr) => {
+      const r = anchor.r + dr
+      while (g.length <= r) g.push(emptyRow())
+      pRow.forEach((val, dc) => {
+        const c = anchor.c + dc
+        if (c < SS_COLS.length) g[r] = { ...g[r], [SS_COLS[c]]: val }
+      })
+    })
+    while (g.length < MIN_ROWS) g.push(emptyRow())
+    setGrid(g); setDirty(true)
+    setFocus({
+      r: Math.min(anchor.r + parsed.length - 1, g.length - 1),
+      c: Math.min(anchor.c + Math.max(...parsed.map(r => r.length)) - 1, SS_COLS.length - 1),
+    })
+  }
+
+  function updateCell(r, c, val) {
+    const g = grid.map(row => ({ ...row }))
+    g[r] = { ...g[r], [SS_COLS[c]]: val }
+    if (r >= g.length - 5) while (g.length < r + 10) g.push(emptyRow())
+    setGrid(g); setDirty(true)
+  }
+
+  function handleImport(e) {
+    const file = e.target.files[0]; if (!file) return
+    const reader = new FileReader()
+    reader.onload = evt => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+        const hrow = data.find(row => row.some(c => /level\s*1/i.test(String(c))))
+        if (!hrow) { alert('Header tidak ditemukan.'); return }
+        const fi = lbl => hrow.findIndex(h => new RegExp(lbl, 'i').test(String(h)))
+        const idx = { l1: fi('level\\s*1'), l2: fi('level\\s*2'), l3: fi('level\\s*3'), l4: fi('level\\s*4'), l5: fi('level\\s*5'), s: fi('summary') }
+        const hi = data.indexOf(hrow)
+        const newRows = data.slice(hi + 1).filter(row => row.some(c => String(c).trim()))
+          .map(row => ({
+            level1: String(row[idx.l1] ?? '').trim(), level2: String(row[idx.l2] ?? '').trim(),
+            level3: String(row[idx.l3] ?? '').trim(), level4: String(row[idx.l4] ?? '').trim(),
+            level5: String(row[idx.l5] ?? '').trim(), summary: String(row[idx.s] ?? '').trim(),
+          }))
+        if (!newRows.length) { alert('Tidak ada data di file.'); return }
+        setGrid(padGrid(newRows)); setDirty(true)
+      } catch (err) { alert('Gagal membaca file: ' + err.message) }
+      e.target.value = ''
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  function handleTemplate() {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(TEMPLATE_ROWS)
+    ws['!cols'] = [{ wch: 28 }, { wch: 28 }, { wch: 28 }, { wch: 28 }, { wch: 28 }, { wch: 45 }]
+    XLSX.utils.book_append_sheet(wb, ws, 'Mind Map')
+    XLSX.writeFile(wb, `template_mindmap_${domain ?? ''}.xlsx`)
+  }
+
+  function doSave() { onSave(trimGrid(grid)) }
+
   return (
-    <div className="mm-sheet-wrap">
-      {!readOnly && (onTemplate || onImport) && (
-        <div className="mm-sheet-topbar">
-          {onTemplate && <button className="btn-sm" onClick={onTemplate}>⬇ Unduh Template XLSX</button>}
-          {onImport && (
-            <>
-              <button className="btn-sm" onClick={() => fileRef.current.click()}>Import XLSX</button>
-              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={onImport} />
-            </>
-          )}
-        </div>
-      )}
-      <div className="mm-sheet-scroll">
-        <table className="mm-sheet-table">
-          <thead>
-            <tr>
-              <th style={{ width: 36 }}>#</th>
-              {LEVEL_LABELS.map(l => <th key={l}>{l}</th>)}
-              <th>Summary</th>
-              {!readOnly && <th style={{ width: 36 }}></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i}>
-                <td className="mm-row-num">{i + 1}</td>
-                {LEVELS.map(lv => (
-                  <td key={lv}>
-                    <input className="mm-cell-input" value={row[lv] || ''} readOnly={readOnly} placeholder={readOnly ? '' : '—'}
-                      onChange={e => !readOnly && onUpdate(i, lv, e.target.value)} />
-                  </td>
-                ))}
-                <td>
-                  <input className="mm-cell-input mm-cell-summary" value={row.summary || ''} readOnly={readOnly}
-                    placeholder={readOnly ? '' : 'Deskripsi…'}
-                    onChange={e => !readOnly && onUpdate(i, 'summary', e.target.value)} />
-                </td>
-                {!readOnly && (
-                  <td style={{ padding: '0 4px' }}>
-                    <button className="mm-delete-btn" onClick={() => onDelete(i)}>×</button>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={8} className="mm-sheet-empty">
-                {readOnly ? 'Belum ada data.' : 'Belum ada baris. Import XLSX atau klik "+ Tambah Baris".'}
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+    <div
+      ref={containerRef}
+      className="ss-outer"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onMouseUp={() => { dragging.current = false }}
+      onCopy={handleCopy}
+      onPaste={handlePaste}
+    >
       {!readOnly && (
-        <div className="mm-sheet-actions">
-          <button className="btn-sm" onClick={onAdd}>+ Tambah Baris</button>
-          <button className={`btn-sm${dirty ? ' btn-sm-primary' : ''}`} onClick={onSave} disabled={saving || !dirty}>
+        <div className="ss-toolbar">
+          <button className="btn-sm" onClick={handleTemplate}>⬇ Template</button>
+          <button className="btn-sm" onClick={() => fileRef.current.click()}>📂 Import XLSX</button>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleImport} />
+          <div style={{ flex: 1 }} />
+          <button className={`btn-sm${dirty ? ' btn-sm-primary' : ''}`} onClick={doSave} disabled={saving || !dirty}>
             {saving ? 'Menyimpan…' : dirty ? '💾 Simpan' : '✓ Tersimpan'}
           </button>
         </div>
       )}
+
+      <div className="ss-scroll">
+        <table className="ss-table" onMouseLeave={() => { dragging.current = false }}>
+          <colgroup>
+            <col style={{ width: 44 }} />
+            {SS_WIDTHS.map((w, i) => <col key={i} style={{ width: w }} />)}
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="ss-th-corner" />
+              {SS_HEADERS.map((h, c) => (
+                <th key={c} className={`ss-th${c >= sel.c1 && c <= sel.c2 ? ' ss-th-sel' : ''}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {grid.map((row, r) => {
+              const rowSel = r >= sel.r1 && r <= sel.r2
+              return (
+                <tr key={r}>
+                  <td className={`ss-rn${rowSel ? ' ss-rn-sel' : ''}`}>{r + 1}</td>
+                  {SS_COLS.map((col, c) => {
+                    const isAnchor   = anchor.r === r && anchor.c === c
+                    const isEditCell = editing && isAnchor
+                    return (
+                      <td
+                        key={c}
+                        className={`ss-cell${inSel(r, c) ? ' ss-sel' : ''}${isAnchor && !isEditCell ? ' ss-anchor' : ''}`}
+                        onMouseDown={e => handleMouseDown(e, r, c)}
+                        onMouseEnter={() => handleMouseEnter(r, c)}
+                        onDoubleClick={() => handleDoubleClick(r, c)}
+                      >
+                        {isEditCell
+                          ? <input
+                              ref={el => { inputRefs.current[`${r}_${c}`] = el }}
+                              className="ss-input"
+                              value={row[col] || ''}
+                              onChange={e => updateCell(r, c, e.target.value)}
+                              onBlur={() => { if (tabbing.current) return; setEditing(false) }}
+                            />
+                          : <span className="ss-val">{row[col] || ''}</span>
+                        }
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="ss-footer">
+        <span className="ss-hint">
+          {readOnly
+            ? 'Klik sel · Ctrl+C: salin'
+            : 'Enter/F2: edit · Tab: kolom berikut · Del: hapus · Ctrl+C/V: salin/tempel dari spreadsheet'}
+        </span>
+        {!readOnly && (
+          <button className={`btn-sm${dirty ? ' btn-sm-primary' : ''}`} onClick={doSave} disabled={saving || !dirty}>
+            {saving ? 'Menyimpan…' : dirty ? '💾 Simpan' : '✓ Tersimpan'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -613,7 +854,6 @@ export default function MindmapPage({ profile }) {
   const [arcCenter, setArcCenter]     = useState(false)
   const [rows, setRows]               = useState([emptyRow()])
   const [saving, setSaving]           = useState(false)
-  const [dirty, setDirty]             = useState(false)
   const [students, setStudents]       = useState([])
   const [selectedStudent, setSelected] = useState('')
   const [editingNode, setEditingNode] = useState(null)
@@ -645,7 +885,6 @@ export default function MindmapPage({ profile }) {
         if (!row || row.domain !== domain || row.class !== myGroup.class || row.group_num !== myGroup.group_num) return
         if (row.updated_by !== profile.id) {
           setRows(Array.isArray(row.rows) ? row.rows : [])
-          setDirty(false)
           setLiveNote('Anggota lain baru saja memperbarui sheet')
           setTimeout(() => setLiveNote(null), 4000)
         }
@@ -669,57 +908,17 @@ export default function MindmapPage({ profile }) {
       const { data } = await supabase.rpc('get_my_mindmap', { p_domain: domain })
       setRows(data ?? [emptyRow()])
     }
-    setDirty(false)
   }
 
-  function addRow()               { setRows(p => [...p, emptyRow()]); setDirty(true) }
-  function deleteRow(i)           { setRows(p => p.filter((_, j) => j !== i)); setDirty(true) }
-  function updateRow(i, fld, val) { setRows(p => p.map((r, j) => j === i ? { ...r, [fld]: val } : r)); setDirty(true) }
-
-  async function save() {
+  async function save(newRows) {
     setSaving(true)
+    setRows(newRows)
     if (myGroup) {
-      await supabase.rpc('save_group_mindmap', { p_domain: domain, p_rows: rows })
+      await supabase.rpc('save_group_mindmap', { p_domain: domain, p_rows: newRows })
     } else {
-      await supabase.rpc('save_mindmap', { p_domain: domain, p_rows: rows })
+      await supabase.rpc('save_mindmap', { p_domain: domain, p_rows: newRows })
     }
-    setSaving(false); setDirty(false)
-  }
-
-  function handleImport(e) {
-    const file = e.target.files[0]; if (!file) return
-    const reader = new FileReader()
-    reader.onload = evt => {
-      try {
-        const wb = XLSX.read(evt.target.result, { type: 'binary' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-        const headerRow = data.find(row => row.some(c => /level\s*1/i.test(String(c))))
-        if (!headerRow) { alert('Header tidak ditemukan.'); return }
-        const fi = label => headerRow.findIndex(h => new RegExp(label, 'i').test(String(h)))
-        const idx = { l1: fi('level\\s*1'), l2: fi('level\\s*2'), l3: fi('level\\s*3'), l4: fi('level\\s*4'), l5: fi('level\\s*5'), s: fi('summary') }
-        const hi = data.indexOf(headerRow)
-        const newRows = data.slice(hi + 1)
-          .filter(row => row.some(c => String(c).trim()))
-          .map(row => ({
-            level1: String(row[idx.l1] ?? '').trim(), level2: String(row[idx.l2] ?? '').trim(),
-            level3: String(row[idx.l3] ?? '').trim(), level4: String(row[idx.l4] ?? '').trim(),
-            level5: String(row[idx.l5] ?? '').trim(), summary: String(row[idx.s] ?? '').trim(),
-          }))
-        if (!newRows.length) { alert('Tidak ada data di file.'); return }
-        setRows(newRows); setDirty(true)
-      } catch (err) { alert('Gagal membaca file: ' + err.message) }
-      e.target.value = ''
-    }
-    reader.readAsBinaryString(file)
-  }
-
-  function downloadTemplate() {
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet(TEMPLATE_ROWS)
-    ws['!cols'] = [{ wch: 28 }, { wch: 28 }, { wch: 28 }, { wch: 28 }, { wch: 28 }, { wch: 45 }]
-    XLSX.utils.book_append_sheet(wb, ws, 'Mind Map')
-    XLSX.writeFile(wb, `template_mindmap_${domain}.xlsx`)
+    setSaving(false)
   }
 
   function handleNodeEdit(newTitle, newSummary) {
@@ -809,10 +1008,13 @@ export default function MindmapPage({ profile }) {
 
               {/* Sheet mode */}
               {mode === 'sheet' && (
-                <SheetView rows={rows} onAdd={addRow} onDelete={deleteRow} onUpdate={updateRow}
-                  onSave={save} saving={saving} dirty={dirty} readOnly={isAdmin}
-                  onImport={isAdmin ? null : handleImport}
-                  onTemplate={isAdmin ? null : downloadTemplate} />
+                <SheetView
+                  initialRows={rows}
+                  onSave={save}
+                  saving={saving}
+                  readOnly={isAdmin}
+                  domain={domain}
+                />
               )}
 
               {/* Map mode */}
