@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase, npmToEmail } from './supabaseClient'
 import MainApp from './MainApp'
+import AppLogo from './components/AppLogo'
 
 const MIN_PW = 8
 
@@ -166,7 +167,7 @@ function AuthFlow() {
     <div className="auth-bg">
       <div className="auth-card">
         <div className="auth-logo">
-          <div className="logo-icon-lg">📊</div>
+          <div className="logo-icon-lg"><AppLogo size={34} /></div>
           <h1>IS Audit Journal</h1>
           <p>Information System Audit · PKN STAN</p>
         </div>
