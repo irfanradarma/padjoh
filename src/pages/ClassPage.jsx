@@ -13,6 +13,7 @@ const TABS = [
 
 export default function ClassPage({ sectionId, session, profile, starsMap = {} }) {
   const [activeTab, setActiveTab]             = useState('notes')
+  const [visitedTabs, setVisitedTabs]         = useState(() => new Set(['notes']))
   const [selectedStudentId, setSelectedStudentId] = useState('')
   const [searchText, setSearchText]           = useState('')
   const [students, setStudents]               = useState([])
@@ -122,16 +123,22 @@ export default function ClassPage({ sectionId, session, profile, starsMap = {} }
           <button
             key={t.id}
             className={`tab-btn${activeTab === t.id ? ' active' : ''}`}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => { setActiveTab(t.id); setVisitedTabs(p => new Set([...p, t.id])) }}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      {activeTab === 'notes'      && <NotesTab      {...sharedProps} />}
-      {activeTab === 'exercise'   && <ExerciseTab   {...sharedProps} />}
-      {activeTab === 'activities' && <ActivitiesTab {...sharedProps} />}
+      {visitedTabs.has('notes') && (
+        <div style={{ display: activeTab === 'notes' ? '' : 'none' }}><NotesTab {...sharedProps} /></div>
+      )}
+      {visitedTabs.has('exercise') && (
+        <div style={{ display: activeTab === 'exercise' ? '' : 'none' }}><ExerciseTab {...sharedProps} /></div>
+      )}
+      {visitedTabs.has('activities') && (
+        <div style={{ display: activeTab === 'activities' ? '' : 'none' }}><ActivitiesTab {...sharedProps} /></div>
+      )}
     </div>
   )
 }

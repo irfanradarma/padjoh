@@ -53,10 +53,19 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   const initialSection = initialPage.type === 'class' ? SECTIONS.find(s => s.id === initialPage.sectionId) : null
   const [preOpen, setPreOpen]   = useState(initialSection?.group === 'pre')
   const [postOpen, setPostOpen] = useState(initialSection?.group === 'post')
+  // Lazy-mount: track which page types have ever been visited
+  const [visited, setVisited]           = useState(() => new Set([initialPage.type]))
+  const [lastSectionId, setLastSection] = useState(initialPage.type === 'class' ? initialPage.sectionId : null)
 
   // Close mobile sidebar on hash change / resize
   useEffect(() => {
-    const handler = () => { setPage(hashToPage(window.location.hash)); setSidebarOpen(false) }
+    const handler = () => {
+      const p = hashToPage(window.location.hash)
+      setPage(p)
+      setSidebarOpen(false)
+      setVisited(prev => new Set([...prev, p.type]))
+      if (p.type === 'class' && p.sectionId) setLastSection(p.sectionId)
+    }
     window.addEventListener('hashchange', handler)
     return () => window.removeEventListener('hashchange', handler)
   }, [])
@@ -68,6 +77,8 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   }, [])
 
   function navigate(newPage) {
+    setVisited(prev => new Set([...prev, newPage.type]))
+    if (newPage.type === 'class' && newPage.sectionId) setLastSection(newPage.sectionId)
     const hash = pageToHash(newPage)
     if (window.location.hash !== hash) window.location.hash = hash
     else setPage(newPage)
@@ -301,26 +312,43 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
           </div>
         )}
 
-        {page.type === 'dashboard' && (
-          <DashboardPage
-            profile={viewProfile}
-            starsMap={starsMap}
-            onNavigate={goToClass}
-            onManageDeadlines={() => navigate({ type: 'deadline' })}
-          />
+        {visited.has('dashboard') && (
+          <div style={{ display: page.type === 'dashboard' ? '' : 'none' }}>
+            <DashboardPage
+              key={masqAs?.id ?? 'self'}
+              profile={viewProfile}
+              starsMap={starsMap}
+              onNavigate={goToClass}
+              onManageDeadlines={() => navigate({ type: 'deadline' })}
+            />
+          </div>
         )}
-        {page.type === 'class' && (
-          <ClassPage
-            key={page.sectionId}
-            sectionId={page.sectionId}
-            session={session}
-            profile={viewProfile}
-            starsMap={starsMap}
-          />
+        {visited.has('class') && lastSectionId && (
+          <div style={{ display: page.type === 'class' ? '' : 'none' }}>
+            <ClassPage
+              key={lastSectionId}
+              sectionId={lastSectionId}
+              session={session}
+              profile={viewProfile}
+              starsMap={starsMap}
+            />
+          </div>
         )}
-        {page.type === 'mindmap'  && <MindmapPage profile={viewProfile} />}
-        {page.type === 'forum'    && <ForumPage profile={viewProfile} />}
-        {page.type === 'deadline' && profile.is_admin && <DeadlinePage />}
+        {visited.has('mindmap') && (
+          <div style={{ display: page.type === 'mindmap' ? '' : 'none' }}>
+            <MindmapPage key={masqAs?.id ?? 'self'} profile={viewProfile} />
+          </div>
+        )}
+        {visited.has('forum') && (
+          <div style={{ display: page.type === 'forum' ? '' : 'none' }}>
+            <ForumPage key={masqAs?.id ?? 'self'} profile={viewProfile} />
+          </div>
+        )}
+        {visited.has('deadline') && profile.is_admin && (
+          <div style={{ display: page.type === 'deadline' ? '' : 'none' }}>
+            <DeadlinePage />
+          </div>
+        )}
       </main>
     </div>
   )
