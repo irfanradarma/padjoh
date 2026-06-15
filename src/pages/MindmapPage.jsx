@@ -605,106 +605,6 @@ function GroupManageTab({ domain }) {
   )
 }
 
-// ── Group Collab Tab (student) ────────────────────────────────
-function GroupCollabTab({ domain, profile }) {
-  const [myGroup, myGroupSet]   = useState(null)
-  const [rows, rowsSet]         = useState([])
-  const [dirty, dirtySet]       = useState(false)
-  const [saving, savingSet]     = useState(false)
-  const [loading, loadingSet]   = useState(true)
-  const [liveNote, liveNoteSet] = useState(null)
-
-  useEffect(() => {
-    let cancelled = false
-    async function init() {
-      loadingSet(true)
-      const { data: grp } = await supabase.rpc('get_my_mindmap_group', { p_domain: domain })
-      if (cancelled) return
-      myGroupSet(grp ?? null)
-      if (grp) {
-        const { data: r } = await supabase.rpc('get_group_mindmap', { p_domain: domain })
-        if (!cancelled) rowsSet(Array.isArray(r) && r.length ? r : [emptyRow()])
-      }
-      if (!cancelled) loadingSet(false)
-    }
-    init()
-    return () => { cancelled = true }
-  }, [domain])
-
-  // Realtime subscription
-  useEffect(() => {
-    if (!myGroup) return
-    const ch = supabase.channel(`grp-mm-${domain}-${myGroup.class}-${myGroup.group_num}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mindmap_group_data' }, payload => {
-        const row = payload.new
-        if (!row) return
-        if (row.domain === domain && row.class === myGroup.class && row.group_num === myGroup.group_num) {
-          if (row.updated_by !== profile.id) {
-            rowsSet(Array.isArray(row.rows) ? row.rows : [])
-            dirtySet(false)
-            const name = myGroup.members?.find(m => m.npm)?.name ?? 'Anggota lain'
-            liveNoteSet(`${name} baru saja memperbarui mind map kelompok`)
-            setTimeout(() => liveNoteSet(null), 4000)
-          }
-        }
-      })
-      .subscribe()
-    return () => supabase.removeChannel(ch)
-  }, [myGroup, domain])
-
-  async function save() {
-    savingSet(true)
-    await supabase.rpc('save_group_mindmap', { p_domain: domain, p_rows: rows })
-    savingSet(false)
-    dirtySet(false)
-  }
-
-  function addRow()               { rowsSet(p => [...p, emptyRow()]); dirtySet(true) }
-  function deleteRow(i)           { rowsSet(p => p.filter((_, j) => j !== i)); dirtySet(true) }
-  function updateRow(i, fld, val) { rowsSet(p => p.map((r, j) => j === i ? { ...r, [fld]: val } : r)); dirtySet(true) }
-
-  if (loading) return <div className="empty-state"><p>Memuat…</p></div>
-
-  if (!myGroup) return (
-    <div className="empty-state">
-      <div className="icon">👥</div>
-      <p>Belum ada pengelompokan untuk domain ini.</p>
-      <p style={{ fontSize: 12, marginTop: 6 }}>Tunggu dosen menetapkan kelompok.</p>
-    </div>
-  )
-
-  return (
-    <div>
-      <div className="mm-collab-banner">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span className="mm-collab-group-badge">Kelompok {myGroup.group_num}</span>
-          <span className="mm-collab-class">{myGroup.class}</span>
-          {liveNote && <span className="mm-collab-live">{liveNote}</span>}
-        </div>
-        <div className="mm-collab-members">
-          <span className="mm-collab-members-label">Anggota:</span>
-          {(myGroup.members ?? []).map(m => (
-            <span key={m.npm} className="mm-collab-member-chip">{m.name}</span>
-          ))}
-        </div>
-      </div>
-
-      <SheetView
-        rows={rows}
-        onAdd={addRow}
-        onDelete={deleteRow}
-        onUpdate={updateRow}
-        onSave={save}
-        saving={saving}
-        dirty={dirty}
-        readOnly={false}
-        onImport={null}
-        onTemplate={null}
-      />
-    </div>
-  )
-}
-
 // ── Main page ─────────────────────────────────────────────────
 export default function MindmapPage({ profile }) {
   const [domain, setDomain]           = useState('D2')
@@ -719,6 +619,8 @@ export default function MindmapPage({ profile }) {
   const [editingNode, setEditingNode] = useState(null)
   const mapContainerRef               = useRef()
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [myGroup, setMyGroup]   = useState(null)
+  const [liveNote, setLiveNote] = useState(null)
 
   const isAdmin = profile.is_admin
 
@@ -729,16 +631,28 @@ export default function MindmapPage({ profile }) {
 
   useEffect(() => { load() }, [domain, selectedStudent])
 
-  // Reset collab mode when domain changes and group doesn't exist
-  useEffect(() => {
-    if (mode === 'collab') setMode('sheet')
-  }, [domain])
-
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', handler)
     return () => document.removeEventListener('fullscreenchange', handler)
   }, [])
+
+  useEffect(() => {
+    if (isAdmin || !myGroup) return
+    const ch = supabase.channel(`grp-mm-${domain}-${myGroup.class}-${myGroup.group_num}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mindmap_group_data' }, payload => {
+        const row = payload.new
+        if (!row || row.domain !== domain || row.class !== myGroup.class || row.group_num !== myGroup.group_num) return
+        if (row.updated_by !== profile.id) {
+          setRows(Array.isArray(row.rows) ? row.rows : [])
+          setDirty(false)
+          setLiveNote('Anggota lain baru saja memperbarui sheet')
+          setTimeout(() => setLiveNote(null), 4000)
+        }
+      })
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [myGroup, domain, isAdmin])
 
   async function load() {
     if (isAdmin) {
@@ -746,8 +660,15 @@ export default function MindmapPage({ profile }) {
       const { data } = await supabase.rpc('get_student_mindmap_data', { p_user_id: selectedStudent, p_domain: domain })
       setRows(data ?? []); return
     }
-    const { data } = await supabase.rpc('get_my_mindmap', { p_domain: domain })
-    setRows(data ?? [emptyRow()])
+    const { data: grp } = await supabase.rpc('get_my_mindmap_group', { p_domain: domain })
+    setMyGroup(grp ?? null)
+    if (grp) {
+      const { data } = await supabase.rpc('get_group_mindmap', { p_domain: domain })
+      setRows(Array.isArray(data) && data.length ? data : [emptyRow()])
+    } else {
+      const { data } = await supabase.rpc('get_my_mindmap', { p_domain: domain })
+      setRows(data ?? [emptyRow()])
+    }
     setDirty(false)
   }
 
@@ -757,7 +678,11 @@ export default function MindmapPage({ profile }) {
 
   async function save() {
     setSaving(true)
-    await supabase.rpc('save_mindmap', { p_domain: domain, p_rows: rows })
+    if (myGroup) {
+      await supabase.rpc('save_group_mindmap', { p_domain: domain, p_rows: rows })
+    } else {
+      await supabase.rpc('save_mindmap', { p_domain: domain, p_rows: rows })
+    }
     setSaving(false); setDirty(false)
   }
 
@@ -808,7 +733,7 @@ export default function MindmapPage({ profile }) {
   }
 
   const tree        = useMemo(() => nestedToTree(rowsToNested(rows)), [rows])
-  const showContent = mode === 'group' || !isAdmin || selectedStudent
+  const showContent = !isAdmin || selectedStudent
 
   return (
     <div className="page-content">
@@ -849,7 +774,6 @@ export default function MindmapPage({ profile }) {
           <>
             <button className={`tab-btn${mode === 'sheet'  ? ' active' : ''}`} onClick={() => setMode('sheet')}>📋 Sheet</button>
             <button className={`tab-btn${mode === 'map'    ? ' active' : ''}`} onClick={() => setMode('map')}>🗺️ Mind Map</button>
-            <button className={`tab-btn${mode === 'collab' ? ' active' : ''}`} onClick={() => setMode('collab')}>👥 Kolaborasi Kelompok</button>
           </>
         )}
       </div>
@@ -859,18 +783,30 @@ export default function MindmapPage({ profile }) {
         <GroupManageTab key={domain} domain={domain} />
       )}
 
-      {/* ── Group collab (student) ── */}
-      {!isAdmin && mode === 'collab' && (
-        <GroupCollabTab key={domain} domain={domain} profile={profile} />
-      )}
-
-      {/* ── Individual sheet / map ── */}
-      {mode !== 'group' && mode !== 'collab' && (
+      {/* ── Sheet / map ── */}
+      {mode !== 'group' && (
         <>
           {!showContent ? (
             <div className="empty-state"><div className="icon">👤</div><p>Pilih mahasiswa untuk melihat mind map.</p></div>
           ) : (
             <>
+              {/* Group banner shown when student is in a group */}
+              {!isAdmin && myGroup && (
+                <div className="mm-collab-banner">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span className="mm-collab-group-badge">Kelompok {myGroup.group_num}</span>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>{myGroup.class}</span>
+                    {liveNote && <span className="mm-collab-live">{liveNote}</span>}
+                  </div>
+                  <div className="mm-collab-members">
+                    <span className="mm-collab-members-label">Anggota:</span>
+                    {(myGroup.members ?? []).map(m => (
+                      <span key={m.npm} className="mm-collab-member-chip">{m.name}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Sheet mode */}
               {mode === 'sheet' && (
                 <SheetView rows={rows} onAdd={addRow} onDelete={deleteRow} onUpdate={updateRow}
