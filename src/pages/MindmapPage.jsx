@@ -436,6 +436,7 @@ function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
   const [anchor, setAnchor]   = useState({ r: 0, c: 0 })
   const [focus, setFocus]     = useState({ r: 0, c: 0 })
   const [editing, setEditing] = useState(false)
+  const [addN, setAddN]       = useState(100)
 
   const tabbing      = useRef(false)  // suppress blur during Tab/Enter cell navigation
   const dragging     = useRef(false)
@@ -705,6 +706,23 @@ function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
           </tbody>
         </table>
       </div>
+
+      {!readOnly && (
+        <div className="ss-add-row-bar">
+          <span className="ss-hint">Tambah</span>
+          <input
+            type="number" min="1" max="1000"
+            className="ss-add-n"
+            value={addN}
+            onChange={e => setAddN(Math.max(1, parseInt(e.target.value) || 1))}
+          />
+          <span className="ss-hint">baris baru</span>
+          <button className="btn-sm" onClick={() => {
+            setGrid(g => [...g, ...Array.from({ length: addN }, emptyRow)])
+            setDirty(true)
+          }}>Tambah</button>
+        </div>
+      )}
 
       <div className="ss-footer">
         <span className="ss-hint">
