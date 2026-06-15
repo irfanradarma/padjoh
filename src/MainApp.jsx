@@ -6,6 +6,7 @@ import ClassPage from './pages/ClassPage'
 import MindmapPage from './pages/MindmapPage'
 import ForumPage from './pages/ForumPage'
 import DeadlinePage from './pages/DeadlinePage'
+import AppLogo from './components/AppLogo'
 
 // ── Hash routing ──────────────────────────────────────────────
 const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline']
@@ -129,7 +130,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
       <aside className={cls}>
         <div className="sidebar-header">
           <div className="sidebar-logo-row">
-            <div className="sidebar-logo-icon">📊</div>
+            <div className="sidebar-logo-icon"><AppLogo size={20} /></div>
             <div className="sidebar-logo-text-wrap">
               <div className="sidebar-logo-text">IS Audit Journal</div>
               <div className="sidebar-logo-sub">PKN STAN</div>
@@ -282,7 +283,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             <span /><span /><span />
           </button>
           <div className="mobile-header-logo">
-            <span className="mobile-header-icon">📊</span>
+            <AppLogo size={22} className="mobile-header-icon" />
             <span className="mobile-header-title">{pageLabel}</span>
           </div>
           <button className="mobile-theme-btn" onClick={toggleTheme} aria-label="Ganti tema">

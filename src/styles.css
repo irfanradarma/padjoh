@@ -1237,7 +1237,7 @@ body {
   display: flex; align-items: center; gap: 8px;
   font-size: 15px; font-weight: 700; color: var(--text);
 }
-.mobile-header-icon { font-size: 20px; }
+.mobile-header-icon { display: flex; align-items: center; color: var(--text); }
 .mobile-header-title { font-size: 14px; font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mobile-theme-btn {
   width: 40px; height: 40px; background: none; border: none;
