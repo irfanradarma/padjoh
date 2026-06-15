@@ -54,9 +54,9 @@ begin
       select 1 from auth.identities where provider_id = eml and provider = 'email'
     ) then
       insert into auth.identities
-        (provider_id, user_id, identity_data, provider, created_at, updated_at)
+        (id, provider_id, user_id, identity_data, provider, created_at, updated_at)
       values
-        (eml, uid,
+        (gen_random_uuid(), eml, uid,
          jsonb_build_object('sub', uid::text, 'email', eml),
          'email', now(), now());
     end if;
