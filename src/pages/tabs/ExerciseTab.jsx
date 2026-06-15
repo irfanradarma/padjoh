@@ -11,27 +11,56 @@ function fmtDate(str) {
 }
 
 // ── Google Sheets panel (section 2 only) ─────────────────────
-const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/1J-gI4RSr2eZRdA7xj7vHZ9uXXLCDwyXIM-N1oSH_6_Q/export?format=csv&gid=0'
-
-function parseCSV(text) {
-  const rows = []
-  for (const line of text.trim().split('\n').slice(1)) {
-    if (!line.trim()) continue
-    // Handle quoted CSV fields
-    const cols = []
-    let cur = '', inQ = false
-    for (const ch of line) {
-      if (ch === '"') { inQ = !inQ }
-      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = '' }
-      else cur += ch
-    }
-    cols.push(cur.trim())
-    const npm = (cols[1] ?? '').trim()
-    const url = (cols[2] ?? '').trim()
-    if (npm) rows.push({ timestamp: cols[0] ?? '', npm, url })
-  }
-  return rows
-}
+// Data embedded from IT Governance Audit Program (Responses) form
+const SHEET_ROWS = [
+  { timestamp: '6/12/2026 10:27:58', npm: '4213250048', url: 'https://drive.google.com/open?id=1QcfvR4Ky5JXO0WMnjgsG3xlpr-LxDMwr' },
+  { timestamp: '6/12/2026 22:59:36', npm: '4213250007', url: 'https://drive.google.com/open?id=1eVwSAPo_Yhjlm8jR4UoTXW1PyLs39rIc' },
+  { timestamp: '6/13/2026 12:58:25', npm: '4213250131', url: 'https://drive.google.com/open?id=18PvEJZkbvEA8GmrkinyJfoAE_ltPWSaJ' },
+  { timestamp: '6/13/2026 14:06:05', npm: '4213250127', url: 'https://drive.google.com/open?id=15atgLmgYUFqvqRPbqCptRqvHQtXsXlp2' },
+  { timestamp: '6/13/2026 18:07:09', npm: '4213250173', url: 'https://drive.google.com/open?id=1SjPWAbeqyJZAJcYYt23TLQGsA7zGIcwD' },
+  { timestamp: '6/13/2026 19:01:22', npm: '4213250070', url: 'https://drive.google.com/open?id=1b-ev6pO6h_0QRiEKzJpeRYahEn5MNK2A' },
+  { timestamp: '6/13/2026 21:29:02', npm: '4213250100', url: 'https://drive.google.com/open?id=1pI6OHFxgFE7yJWzYp-x3sXyD3mEyodP0' },
+  { timestamp: '6/13/2026 22:09:23', npm: '4213250001', url: 'https://drive.google.com/open?id=1zfWj-okX8149xO4-Mg4FK7Cv0H88DUKU' },
+  { timestamp: '6/13/2026 23:48:02', npm: '4213250095', url: 'https://drive.google.com/open?id=1KpVM3plMdtA-8b_w5NGDzd3Fd_UOuiKS' },
+  { timestamp: '6/14/2026 9:04:18',  npm: '4213250174', url: 'https://drive.google.com/open?id=1IpBWs3lMYYoWSDCSvSpPOZQvVLIjdsqT' },
+  { timestamp: '6/14/2026 9:12:50',  npm: '4213250049', url: 'https://drive.google.com/open?id=13kPs_yjqP59DYfpW6wYbfga-HtDcBZyu' },
+  { timestamp: '6/14/2026 9:51:50',  npm: '4213250013', url: 'https://drive.google.com/open?id=1rhZhdcEK-FmkY-KoU9wMx2UaUANTOJqI' },
+  { timestamp: '6/14/2026 10:03:27', npm: '4213250137', url: 'https://drive.google.com/open?id=1-LWzRyuZFC5hJD9WCogKdOToGltSltRG' },
+  { timestamp: '6/14/2026 11:06:02', npm: '4213250138', url: 'https://drive.google.com/open?id=1uZ_ogUCay5zt46PUoZIDhRto9On7SBXZ' },
+  { timestamp: '6/14/2026 12:50:08', npm: '4213250083', url: 'https://drive.google.com/open?id=1RV6Qk6cu0oHsQtib2pjIdUAj9ToJ_gbj' },
+  { timestamp: '6/14/2026 13:30:31', npm: '4213250099', url: 'https://drive.google.com/open?id=1bRciPyHHGCqjjKTPIG8wh8vttOtZ9AWD' },
+  { timestamp: '6/14/2026 13:46:22', npm: '4213250151', url: 'https://drive.google.com/open?id=1IQOb8rH7GHTDwLjVs_lu2XC7n-VhIaTy' },
+  { timestamp: '6/14/2026 15:21:34', npm: '4213250130', url: 'https://drive.google.com/open?id=1NqZgnZS4Qe3mlO5nTLEP97ohafG9MOvs' },
+  { timestamp: '6/14/2026 16:12:28', npm: '4213250142', url: 'https://drive.google.com/open?id=1E5A9PrQzu-uZ0mL_DDTJE28bDrGWyYAJ' },
+  { timestamp: '6/14/2026 16:15:29', npm: '4213250142', url: 'https://drive.google.com/open?id=1msMKQuYQHn21WZHZqlPP6x1dO58F8wFz' },
+  { timestamp: '6/14/2026 17:39:54', npm: '4213250126', url: 'https://drive.google.com/open?id=1acQJv8Z_-xY4QvYhyVuUIFF13VKm8k6Z' },
+  { timestamp: '6/14/2026 17:45:34', npm: '4213250008', url: 'https://drive.google.com/open?id=1kQ1Kei6TH3CkUCdaF-99yQtBCaOcsxpd' },
+  { timestamp: '6/14/2026 18:14:09', npm: '4213250143', url: 'https://drive.google.com/open?id=1HjHNC73GYI4OB_m1w1qT57DBHhaguWSq' },
+  { timestamp: '6/14/2026 18:59:18', npm: '4213250111', url: 'https://drive.google.com/open?id=1rC0e2X3AO_vLvncz2VIndnJlyYatx95L' },
+  { timestamp: '6/14/2026 18:59:28', npm: '4213250129', url: 'https://drive.google.com/open?id=1rRahDVAdYlrN1v-NTzLZ6kEPxfzINPI7' },
+  { timestamp: '6/14/2026 19:02:03', npm: '4213250034', url: 'https://drive.google.com/open?id=1N32-XLl7bWGGSOEb7tGXtTCa44YvVunT' },
+  { timestamp: '6/14/2026 19:41:18', npm: '4213250115', url: 'https://drive.google.com/open?id=1H7UEaMRuyExVTAneavKwHbT07gqFrxBP' },
+  { timestamp: '6/14/2026 20:29:38', npm: '4213250005', url: 'https://drive.google.com/open?id=1A4Z5OFmwmE3N4CsqSomfSALwwoO_U8kj' },
+  { timestamp: '6/14/2026 20:58:10', npm: '4213250138', url: 'https://drive.google.com/open?id=1k0rJWVfOFaxggKAVWqV5Tqb8Kasx_jfb' },
+  { timestamp: '6/14/2026 21:11:39', npm: '4213250121', url: 'https://drive.google.com/open?id=16HxQdv-sJpCNwcJEOW8W2Hglj0HLPQ-y' },
+  { timestamp: '6/14/2026 21:24:43', npm: '4213250082', url: 'https://drive.google.com/open?id=1sMFxriNwDvpzSt0HP_iBZW8fOAUe8NTo' },
+  { timestamp: '6/14/2026 21:38:14', npm: '4213250124', url: 'https://drive.google.com/open?id=1EegzEfeT1PJHc5yAMiJrN_vNCozNIMiO' },
+  { timestamp: '6/14/2026 21:38:38', npm: '4213250152', url: 'https://drive.google.com/open?id=1WDbm58HIHMJQCaPZTg72hCqY561-BGH7' },
+  { timestamp: '6/14/2026 21:55:32', npm: '4213250134', url: 'https://drive.google.com/open?id=1uZ9kTYMssp7qiWjAh3_O_Lov1KU7u5JB' },
+  { timestamp: '6/14/2026 22:21:03', npm: '4213250136', url: 'https://drive.google.com/open?id=1JghDp0r1kOjCGlu766JuZngkKUTBEYcW' },
+  { timestamp: '6/14/2026 22:25:06', npm: '4213250093', url: 'https://drive.google.com/open?id=1Ymn0z3s_Dr9mt_xXwjbuO6pCOhgiuIPK' },
+  { timestamp: '6/14/2026 22:50:48', npm: '4213250096', url: 'https://drive.google.com/open?id=1u4eLS7ESFO2HHfVX_d7xxes7T-fPA89S' },
+  { timestamp: '6/14/2026 22:59:57', npm: '4213250050', url: 'https://drive.google.com/open?id=1OAiZEkqh11Db9FfYAKcJ2nE2TCeM3PQW' },
+  { timestamp: '6/14/2026 23:03:55', npm: '4213250148', url: 'https://drive.google.com/open?id=1pj1jYXdVpImewIeCBgfp0725rbxTnxAd' },
+  { timestamp: '6/14/2026 23:11:45', npm: '4213250133', url: 'https://drive.google.com/open?id=1cTaUIUNjmlL0qMGbKoF8q-ogCsMk1KNN' },
+  { timestamp: '6/14/2026 23:12:40', npm: '4213250150', url: 'https://drive.google.com/open?id=1CDkcd1fkJZaALPCMMgTe8QDNSMxQX0vu' },
+  { timestamp: '6/14/2026 23:19:12', npm: '4213250026', url: 'https://drive.google.com/open?id=1s3SCvPViEdj-kJfJD6rzsTWOpH7PtxX_' },
+  { timestamp: '6/14/2026 23:28:23', npm: '4213250146', url: 'https://drive.google.com/open?id=1VCbn6Dg5zUuM7_qK0k1fZ64PRnS1oT6A' },
+  { timestamp: '6/14/2026 23:40:41', npm: '4213250023', url: 'https://drive.google.com/open?id=1Wl4h1V1lIOH7a_iUMtARk2mbHc3wkEr9' },
+  { timestamp: '6/14/2026 23:49:13', npm: '4213250141', url: 'https://drive.google.com/open?id=1SE1SAFqt179GJ6a-NMI2ySiOpzc4NGIX' },
+  { timestamp: '6/14/2026 23:55:26', npm: '4213250120', url: 'https://drive.google.com/open?id=1MTMSH6DpGwu4gHa6V_AQLMa509Ncq_ZU' },
+  { timestamp: '6/14/2026 23:57:30', npm: '4213250135', url: 'https://drive.google.com/open?id=19WlYH7_N7GGocgunEoDvNXJzP3Neb9Zt' },
+]
 
 function drivePreview(url) {
   if (!url) return null
@@ -43,15 +72,7 @@ function drivePreview(url) {
 }
 
 function useSheetData() {
-  const [rows, setRows] = useState(null)
-  const [err, setErr]   = useState(null)
-  useEffect(() => {
-    fetch(SHEET_CSV)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text() })
-      .then(text => setRows(parseCSV(text)))
-      .catch(e => setErr(e.message))
-  }, [])
-  return { rows, err }
+  return { rows: SHEET_ROWS, err: null }
 }
 
 function PdfPreview({ url, label }) {

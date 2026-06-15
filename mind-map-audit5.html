@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IS Auditing Domain Navigation Map</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font family -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* GitHub Dark Background */
+        }
+        /* Custom scrollbar style for the content area */
+        .content-area {
+            max-height: 70vh; /* Set a max height for content */
+            overflow-y: auto;
+            padding-right: 1rem; /* Space for scrollbar */
+        }
+        .content-area::-webkit-scrollbar {
+            width: 8px;
+        }
+        .content-area::-webkit-scrollbar-thumb {
+            background-color: #115e59;
+            border-radius: 4px;
+        }
+        .content-area::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div id="app" class="max-w-4xl mx-auto">
+        <header class="text-center mb-8 p-4 rounded-xl bg-gray-800 shadow-2xl">
+            <h1 class="text-3xl font-extrabold text-teal-400 sm:text-4xl">IS Auditing Course Navigation Map</h1>
+            <p class="text-lg text-gray-400 mt-2">Interactive Outline of IS Audit and Assurance Domains</p>
+        </header>
+
+        <!-- Domain Tab Bar -->
+        <div id="tab-bar" class="flex flex-wrap justify-center gap-2 mb-6 p-2 rounded-xl bg-gray-800 shadow-lg">
+            <!-- Tab buttons will be rendered here -->
+        </div>
+
+        <!-- Loading and Error States -->
+        <div id="loading" class="text-center text-teal-400 mt-10">
+            <svg class="animate-spin h-8 w-8 text-teal-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-2 text-lg">Loading course data from Google Sheet...</p>
+        </div>
+        
+        <div id="error-message" class="hidden bg-red-800 p-4 rounded-lg text-white font-medium">
+            Error loading data. Check the console for details.
+        </div>
+
+        <!-- Mind Map / Navigation Container (Content Area) -->
+        <div id="map-container" class="hidden p-4 bg-gray-900 rounded-xl shadow-inner content-area">
+            <div id="node-list" class="space-y-4">
+                <!-- Domain-specific content will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initial static structure for all domains. D2 and D3 will have children populated externally.
+        const MOCK_DATA_INITIAL = [
+            {
+                "id": "D2",
+                "title": "Domain 2: IT Governance and Management",
+                "description": "Content for this domain is loaded dynamically from the Google Sheet TSV export.",
+                "type": "domain",
+                "children": [], // Content will be fetched from the D2 TSV
+                "resources": []
+            },
+            {
+                "id": "D3",
+                "title": "Domain 3: Information Systems Acquisition, Development, and Implementation",
+                "description": "Content for this domain is loaded dynamically from the Google Sheet TSV export.",
+                "type": "domain",
+                "children": [], // Content will be fetched from the D3 TSV
+                "resources": []
+            },
+            {
+                "id": "D4",
+                "title": "Domain 4: Information Systems Operations and Business Resilience",
+                "description": "Content for this domain is loaded dynamically from the Google Sheet TSV export",
+                "type": "domain",
+                "children": [], // Content will be fetched from the D4 TSV
+                "resources": []
+            },
+            {
+                "id": "D5",
+                "title": "Domain 5: Protection of Information Assets",
+                "description": "Security policies, controls, and compliance. (Content placeholder)",
+                "type": "domain",
+                "children": [],
+                "resources": []
+            }
+        ];
+
+        // --- Configuration ---
+        const BASE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1-kGFWIiwrVdHqFtHpu1nYsb922rT9KsmgUeWwiEQZks/export?format=tsv';
+        
+        // D3 URL (original GID=0)
+        const D3_URL = `${BASE_SHEET_URL}&gid=0`; 
+        
+        // D2 URL (new GID=2065157521)
+        const D2_URL = `${BASE_SHEET_URL}&gid=2065157521`;
+
+        // D4 URL (new GID=1963494505)
+        const D4_URL = `${BASE_SHEET_URL}&gid=1963494505`;
+
+        // D5 URL (new GID=1885603828)
+        const D5_URL = `${BASE_SHEET_URL}&gid=1885603828`;
+        
+        // --- Core Application Logic ---
+
+        const loadingDiv = document.getElementById('loading');
+        const errorDiv = document.getElementById('error-message');
+        const mapContainer = document.getElementById('map-container');
+        const nodeList = document.getElementById('node-list');
+        const tabBar = document.getElementById('tab-bar');
+        
+        let courseData = MOCK_DATA_INITIAL;
+        // Set the active domain ID to D4 by default, as requested.
+        let activeDomainId = 'D5'; 
+
+        // Mapping node types to visual styles
+        const TYPE_STYLES = {
+            'domain': {
+                bg: 'bg-teal-700 hover:bg-teal-600',
+                text: 'text-white font-bold',
+                icon: '📚',
+                padding: 'p-3'
+            },
+            'section': {
+                bg: 'bg-indigo-700/80 hover:bg-indigo-600/80',
+                text: 'text-white font-semibold',
+                icon: '📖',
+                padding: 'p-3'
+            },
+            'topic': {
+                bg: 'bg-gray-700/80 hover:bg-gray-600/80',
+                text: 'text-gray-200 font-medium',
+                icon: '📌',
+                padding: 'p-3'
+            },
+            'sub-topic': {
+                bg: 'bg-gray-800/80 hover:bg-gray-700/80',
+                text: 'text-gray-300',
+                icon: '💡',
+                padding: 'p-3'
+            },
+            'sub-sub-topic': { 
+                bg: 'bg-gray-900/80 hover:bg-gray-800/80',
+                text: 'text-gray-400',
+                icon: '➡️',
+                padding: 'p-3'
+            },
+            'leaf': { 
+                bg: 'bg-gray-900/80 hover:bg-gray-800/80',
+                text: 'text-gray-400',
+                icon: '➡️',
+                padding: 'p-3'
+            },
+        };
+
+        // Helper function to map resource format to an icon (kept for future use)
+        function getResourceIcon(format) {
+            if (!format) return '🔗';
+            switch (format.toLowerCase()) {
+                case 'pdf':
+                    return '📄';
+                case 'video':
+                    return '📺';
+                case 'article':
+                    return '📰';
+                case 'link':
+                default:
+                    return '🔗';
+            }
+        }
+
+        // Function to create an HTML element with classes and content
+        function createElement(tag, classes, content = '') {
+            const el = document.createElement(tag);
+            el.className = classes;
+            el.innerHTML = content;
+            return el;
+        }
+
+        // Renders the list of resources for a single node (kept for future use)
+        function renderResources(resources) {
+            const ul = createElement('ul', 'w-full space-y-1 p-2 bg-gray-800/70 rounded-b-lg border-t border-gray-700');
+            resources.forEach(res => {
+                const li = createElement('li', '');
+                const a = createElement('a', 
+                    'flex items-center text-sm text-blue-300 hover:text-blue-200 transition-colors duration-150',
+                    `<span class="mr-2">${getResourceIcon(res.format || 'link')}</span> <span>${res.name}</span>`
+                );
+                a.href = res.url;
+                a.target = '_blank'; // Open in a new tab
+                li.appendChild(a);
+                ul.appendChild(li);
+            });
+            return ul;
+        }
+
+        // Toggles the children list and updates the icon
+        function toggleChildren(itemDiv, ul, iconSpan) {
+            const isExpanded = itemDiv.dataset.childrenExpanded === 'true';
+            if (isExpanded) {
+                ul.classList.add('hidden');
+                iconSpan.innerHTML = '▼';
+                itemDiv.dataset.childrenExpanded = 'false';
+            } else {
+                ul.classList.remove('hidden');
+                iconSpan.innerHTML = '▲';
+                itemDiv.dataset.childrenExpanded = 'true';
+            }
+        }
+        
+        // Toggles the brief details section for leaf nodes
+        function toggleDetails(itemDiv, detailsDiv, iconSpan) {
+            const isExpanded = itemDiv.dataset.detailsExpanded === 'true';
+            if (isExpanded) {
+                detailsDiv.classList.add('hidden');
+                iconSpan.innerHTML = '+';
+                itemDiv.dataset.detailsExpanded = 'false';
+            } else {
+                detailsDiv.classList.remove('hidden');
+                iconSpan.innerHTML = '−';
+                itemDiv.dataset.detailsExpanded = 'true';
+            }
+        }
+        
+        /**
+         * Converts flat CSV/TSV text into the nested object structure expected by the app.
+         * NOTE: Assumes a TAB (\t) delimiter due to using format=tsv in the URL.
+         * @param {string} csvText - The TSV data as a string.
+         * @param {string} topLevelKey - The key to wrap the final result in (e.g., 'D3_Content' or 'D2_Content').
+         */
+        function csvToNestedObject(csvText, topLevelKey) {
+            const lines = csvText.trim().split('\n');
+            if (lines.length <= 1) return { [topLevelKey]: {} }; // Header only or empty
+
+            const DELIMITER = '\t'; 
+
+            // --- Robust Header Parsing ---
+            const rawHeaders = lines[0].split(DELIMITER); 
+            const headers = rawHeaders.map(h => h.trim().replace(/^['"]|['"]$/g, '')); 
+            const data = lines.slice(1);
+            
+            // Expected header labels based on the user's provided spreadsheet
+            const LEVEL_HEADERS = ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5'];
+            const SUMMARY_HEADER = 'Summary';
+            const EXPECTED_HEADERS = [...LEVEL_HEADERS, SUMMARY_HEADER];
+
+            // Find dynamic indices of expected headers
+            const indices = {};
+            let allFound = true;
+            EXPECTED_HEADERS.forEach(expected => {
+                const index = headers.indexOf(expected);
+                if (index === -1) {
+                    // Check for common header deviations (e.g., 'Level 1' vs 'Level 1 Name')
+                    const foundAlternative = headers.findIndex(h => h.startsWith(expected));
+                    if (foundAlternative !== -1) {
+                        indices[expected] = foundAlternative;
+                    } else {
+                        allFound = false;
+                        console.error(`Header "${expected}" not found in TSV headers:`, headers); 
+                    }
+                } else {
+                    indices[expected] = index;
+                }
+            });
+            
+            if (!allFound) {
+                console.warn("Actual TSV headers found:", headers);
+                // Throwing an error ensures that the UI shows the error instead of crashing silently.
+                throw new Error(`TSV structure is unexpected. Required headers (${EXPECTED_HEADERS.join(', ')}) were not all found in the first row.`);
+            }
+
+            const finalRoot = {};
+
+            data.forEach(line => {
+                // Split the line using the TAB delimiter
+                const values = line.split(DELIMITER); 
+                if (values.length < EXPECTED_HEADERS.length || values.every(v => v.trim() === '')) return;
+
+                let currentNode = finalRoot;
+                
+                // Trim the summary value and remove potential surrounding quotes
+                const rawSummary = values[indices[SUMMARY_HEADER]] || '';
+                const summary = rawSummary.trim().replace(/^["']|["']$/g, '');
+                
+                let deepestLevelKey = null;
+
+                // 1. Find the deepest populated level for this row
+                LEVEL_HEADERS.forEach(header => {
+                    const index = indices[header];
+                    // Check if index exists before accessing values[index]
+                    if (index !== -1) {
+                        const levelValue = values[index] ? values[index].trim().replace(/^["']|["']$/g, '') : '';
+                        if (levelValue) {
+                            // Use a safe key for object properties
+                            deepestLevelKey = levelValue.replace(/\s/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+                        }
+                    }
+                });
+
+                // 2. Traverse and build hierarchy up to the deepest level
+                if (deepestLevelKey) {
+                    LEVEL_HEADERS.forEach(header => {
+                        const index = indices[header];
+                        if (index !== -1) {
+                            const levelValue = values[index] ? values[index].trim().replace(/^["']|[""]$/g, '') : '';
+
+                            if (levelValue) {
+                                const cleanKey = levelValue.replace(/\s/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+
+                                // If this is the deepest level, attach the summary object (leaf node)
+                                if (cleanKey === deepestLevelKey) {
+                                    currentNode[cleanKey] = { summary: summary };
+                                } else {
+                                    // It's a parent node, ensure it's an object and move down
+                                    currentNode[cleanKey] = currentNode[cleanKey] || {};
+                                    currentNode = currentNode[cleanKey]; 
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Wrap the result in the top-level key
+            return {
+                [topLevelKey]: finalRoot
+            };
+        }
+
+        /**
+         * Helper function to convert the nested key-based object structure 
+         * (output of csvToNestedObject) to the expected array-based structure for rendering.
+         */
+        function convertNestedObjectToArray(nestedObj, parentId, depth = 0) {
+            const result = [];
+            let count = 1;
+
+            for (const [key, value] of Object.entries(nestedObj)) {
+                // Generate a clean title from the key (e.g., "Project_Governance_and_Management" -> "Project Governance and Management")
+                const title = key.replace(/_/g, ' ');
+                // Generate a new ID based on parent ID and counter
+                const id = `${parentId}.${count++}`; 
+                
+                let node = {
+                    id: id,
+                    title: title,
+                    type: '', 
+                    resources: [], 
+                    children: [],
+                    brief: null, 
+                };
+                
+                // Check if it's a leaf node (i.e., the value contains a 'summary' property)
+                if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'summary') && Object.keys(value).length === 1) {
+                    node.type = 'leaf';
+                    node.brief = value.summary; // Map the 'summary' field to the expected 'brief' field
+                } 
+                // Check if it's a structural node
+                else if (value && typeof value === 'object') {
+                    // Determine type based on depth (adjusting the heuristic for 5 levels of nesting)
+                    // The app has 4 structural styles: section, topic, sub-topic, sub-sub-topic
+                    if (depth === 0) node.type = 'section';        // Level 1
+                    else if (depth === 1) node.type = 'topic';     // Level 2
+                    else if (depth === 2) node.type = 'sub-topic'; // Level 3
+                    else if (depth === 3) node.type = 'sub-topic'; // Level 4 (reusing sub-topic style)
+                    else node.type = 'sub-sub-topic';              // Level 5+
+                    
+                    // Recursively process children
+                    node.children = convertNestedObjectToArray(value, id, depth + 1);
+                }
+
+                // Add the node if it's a structural or leaf node
+                if (node.type !== '') {
+                    result.push(node);
+                }
+            }
+            return result;
+        }
+
+        // Recursive function to render nodes
+        function renderNode(node, depth = 0) {
+            const nodeStyles = TYPE_STYLES[node.type] || TYPE_STYLES['sub-sub-topic'];
+            const indentationClass = depth > 0 ? 'border-l-4 border-gray-600 ml-4 pl-4' : '';
+            const li = createElement('li', `mb-1 ${indentationClass}`);
+            
+            const itemDiv = createElement('div', 
+                `w-full text-left rounded-lg transition duration-150 ease-in-out shadow-md
+                 flex flex-col items-start justify-between ${nodeStyles.bg} ${nodeStyles.text}`
+            );
+
+            const titleButton = createElement('button', 
+                `w-full text-left flex items-center justify-between ${nodeStyles.padding} focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-opacity-50`
+            );
+
+            const leftContent = createElement('div', 'flex items-center overflow-hidden');
+            leftContent.innerHTML = `
+                <span class="mr-3 text-xl">${nodeStyles.icon}</span>
+                <div class="truncate flex flex-col items-start">
+                    <span class="font-mono text-xs opacity-75 mr-2">${node.id}</span>
+                    <span class="text-base font-semibold">${node.title}</span>
+                </div>
+            `;
+            titleButton.appendChild(leftContent);
+
+            const rightIcons = createElement('div', 'flex items-center space-x-2');
+            
+            let childrenUl;
+            let childrenIcon;
+            let detailsDiv;
+            let detailsIcon;
+
+            const hasChildren = node.children && node.children.length > 0;
+            const hasDescription = (node.description && node.description.length > 0) || (node.brief && node.brief.length > 0);
+            const hasResources = node.resources && node.resources.length > 0;
+            const hasDetails = hasDescription || hasResources;
+
+            if (hasChildren) {
+                childrenIcon = createElement('span', 'text-xl transition-transform duration-300 p-1 rounded-full hover:bg-gray-700', '▼');
+                rightIcons.appendChild(childrenIcon);
+                
+                childrenUl = createElement('ul', 'hidden w-full space-y-1 p-2 bg-gray-900/50 rounded-b-lg');
+                node.children.forEach(child => childrenUl.appendChild(renderNode(child, depth + 1)));
+
+                itemDiv.dataset.childrenExpanded = 'false';
+                
+                titleButton.onclick = () => toggleChildren(itemDiv, childrenUl, childrenIcon);
+
+                childrenIcon.onclick = (e) => {
+                    e.stopPropagation(); 
+                    toggleChildren(itemDiv, childrenUl, childrenIcon);
+                };
+            }
+            else if (hasDetails) {
+                detailsIcon = createElement('span', 'text-xl transition-transform duration-300 p-1 rounded-full hover:bg-gray-700 cursor-pointer', '+');
+                rightIcons.appendChild(detailsIcon);
+
+                detailsDiv = createElement('div', 'hidden w-full space-y-2 p-4 bg-gray-800/80 rounded-b-lg border-t border-gray-700');
+                itemDiv.dataset.detailsExpanded = 'false';
+
+                const descriptionText = node.brief || node.description;
+
+                if (descriptionText) {
+                    detailsDiv.appendChild(createElement('p', 'text-sm text-gray-300 italic', descriptionText));
+                }
+
+                if (hasResources) {
+                    detailsDiv.appendChild(createElement('p', 'text-sm font-semibold text-teal-300 mt-2 pt-2 border-t border-gray-700', 'Related Resources:'));
+                    detailsDiv.appendChild(renderResources(node.resources));
+                }
+
+                titleButton.onclick = () => toggleDetails(itemDiv, detailsDiv, detailsIcon);
+                
+                detailsIcon.onclick = (e) => {
+                    e.stopPropagation(); 
+                    toggleDetails(itemDiv, detailsDiv, detailsIcon);
+                };
+
+            } else {
+                titleButton.onclick = (e) => e.preventDefault(); 
+            }
+
+            titleButton.appendChild(rightIcons);
+            itemDiv.appendChild(titleButton);
+
+            if (childrenUl) {
+                itemDiv.appendChild(childrenUl);
+            } else if (detailsDiv) {
+                itemDiv.appendChild(detailsDiv);
+            }
+
+            li.appendChild(itemDiv);
+            return li;
+        }
+
+        // Function to switch and render the domain content
+        function setActiveDomain(domainId) {
+            activeDomainId = domainId;
+            nodeList.innerHTML = ''; // Clear existing content
+
+            const domain = courseData.find(d => d.id === domainId);
+
+            if (domain && domain.children && domain.children.length > 0) {
+                const domainHeader = createElement('h2', 'text-2xl text-teal-400 font-bold mb-4 border-b border-gray-700 pb-2', domain.title);
+                const domainDesc = createElement('p', 'text-gray-400 mb-6 italic', domain.description);
+                nodeList.appendChild(domainHeader);
+                nodeList.appendChild(domainDesc);
+
+                domain.children.forEach(node => nodeList.appendChild(renderNode(node, 0)));
+            } else if (domain) {
+                nodeList.innerHTML = `
+                    <h2 class="text-2xl text-teal-400 font-bold mb-4 border-b border-gray-700 pb-2">${domain.title}</h2>
+                    <p class="text-gray-400 p-4">${domain.description || 'No detailed sections available yet for this domain. Please check back later.'}</p>`;
+            } else {
+                nodeList.innerHTML = `<p class="text-red-400 p-4">Error: Domain content not found.</p>`;
+            }
+
+            tabBar.querySelectorAll('button').forEach(button => {
+                if (button.dataset.domainId === domainId) {
+                    button.classList.add('bg-teal-500', 'text-gray-900', 'shadow-xl');
+                    button.classList.remove('bg-gray-700', 'text-gray-200');
+                } else {
+                    button.classList.remove('bg-teal-500', 'text-gray-900', 'shadow-xl');
+                    button.classList.add('bg-gray-700', 'text-gray-200');
+                }
+            });
+        }
+
+        // Function to render the top-level domain tabs
+        function renderTabs(data) {
+            tabBar.innerHTML = ''; 
+            data.forEach(domain => {
+                const button = createElement('button', 
+                    `px-4 py-2 rounded-lg font-semibold transition-colors duration-200 ease-in-out whitespace-nowrap
+                     ${domain.id === activeDomainId ? 'bg-teal-500 text-gray-900 shadow-xl' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`
+                );
+                button.dataset.domainId = domain.id;
+                button.innerHTML = `<span>${domain.id}</span>`;
+                button.onclick = () => setActiveDomain(domain.id);
+                tabBar.appendChild(button);
+            });
+        }
+        
+        // Function to fetch and process the CSV data
+        async function fetchCsvDataWithRetry(url, topLevelKey, domainId) {
+            const maxRetries = 3;
+            
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    // Update loading message
+                    document.getElementById('loading').querySelector('p').innerHTML = `Loading ${domainId} data from Google Sheet...`;
+
+                    // Fetch the TSV text
+                    const response = await fetch(url); 
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status} (${response.statusText})`);
+                    }
+                    const csvText = await response.text(); 
+                    
+                    // Convert TSV to the expected nested object structure
+                    const nestedData = csvToNestedObject(csvText, topLevelKey);
+                    return nestedData; // Success!
+
+                } catch (e) {
+                    console.warn(`Attempt ${i + 1} for ${domainId} failed:`, e.message);
+                    if (i < maxRetries - 1) {
+                        const delay = Math.pow(2, i) * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    } else {
+                        throw e; // Re-throw the error on the last attempt
+                    }
+                }
+            }
+        }
+
+        // Main function to fetch data and initialize the app
+        async function fetchData() {
+            let loadErrors = [];
+
+            // Execute fetches concurrently
+            const fetchD2Promise = fetchCsvDataWithRetry(D2_URL, 'D2_Content', 'Domain 2').catch(e => {
+                loadErrors.push(`Failed to load Domain 2: ${e.message}`);
+                console.error("Failed to load Domain 2 data:", e);
+                return { D2_Content: {} }; // Return an empty object on failure
+            });
+            
+            const fetchD3Promise = fetchCsvDataWithRetry(D3_URL, 'D3_Content', 'Domain 3').catch(e => {
+                loadErrors.push(`Failed to load Domain 3: ${e.message}`);
+                console.error("Failed to load Domain 3 data:", e);
+                return { D3_Content: {} }; // Return an empty object on failure
+            });
+
+            const fetchD4Promise = fetchCsvDataWithRetry(D4_URL, 'D4_Content', 'Domain 4').catch(e => {
+                loadErrors.push(`Failed to load Domain 4: ${e.message}`);
+                console.error("Failed to load Domain 4 data:", e);
+                return { D4_Content: {} }; // Return an empty object on failure
+            });
+
+            const fetchD5Promise = fetchCsvDataWithRetry(D5_URL, 'D5_Content', 'Domain 5').catch(e => {
+                loadErrors.push(`Failed to load Domain 5: ${e.message}`);
+                console.error("Failed to load Domain 5 data:", e);
+                return { D4_Content: {} }; // Return an empty object on failure
+            });
+
+            // Wait for both promises to resolve/fail gracefully
+            const [fetchedD2Data, fetchedD3Data, fetchedD4Data, fetchedD5Data] = await Promise.all([fetchD2Promise, fetchD3Promise, fetchD4Promise, fetchD5Promise]);
+
+            // Process D2 Data
+            const d2Index = courseData.findIndex(d => d.id === 'D2');
+            if (d2Index !== -1 && fetchedD2Data.D2_Content) {
+                courseData[d2Index].children = convertNestedObjectToArray(fetchedD2Data.D2_Content, 'D2', 0);
+            } 
+            
+            // Process D3 Data
+            const d3Index = courseData.findIndex(d => d.id === 'D3');
+            if (d3Index !== -1 && fetchedD3Data.D3_Content) {
+                courseData[d3Index].children = convertNestedObjectToArray(fetchedD3Data.D3_Content, 'D3', 0);
+            }
+
+            // Process D4 Data
+            const d4Index = courseData.findIndex(d => d.id === 'D4');
+            if (d4Index !== -1 && fetchedD4Data.D4_Content) {
+                courseData[d4Index].children = convertNestedObjectToArray(fetchedD4Data.D4_Content, 'D4', 0);
+            }
+
+            // Process D5 Data
+            const d5Index = courseData.findIndex(d => d.id === 'D5');
+            if (d5Index !== -1 && fetchedD5Data.D5_Content) {
+                courseData[d5Index].children = convertNestedObjectToArray(fetchedD5Data.D5_Content, 'D5', 0);
+            }
+
+            // --- Final Initialization ---
+
+            // Display any accumulated errors
+            if (loadErrors.length > 0) {
+                errorDiv.innerHTML = `Warning: Some domains failed to load. Details: <ul>${loadErrors.map(e => `<li>${e}</li>`).join('')}</ul>. Check console for full details.`;
+                errorDiv.classList.remove('hidden');
+            } else {
+                 errorDiv.classList.add('hidden');
+            }
+
+            // Fallback check: If the default domain D3 has no content, try D2, then D4.
+            const d3HasContent = courseData.find(d => d.id === 'D3')?.children.length > 0;
+            const d2HasContent = courseData.find(d => d.id === 'D2')?.children.length > 0;
+            const d4HasContent = courseData.find(d => d.id === 'D4')?.children.length > 0;
+            const d5HasContent = courseData.find(d => d.id === 'D5')?.children.length > 0;
+
+            if (!d5HasContent) {
+                if (d3HasContent) {
+                    activeDomainId = 'D4';
+                } else {
+                    activeDomainId = 'D3'; // Fallback to a static domain
+                }
+            }
+
+            // Render tabs and content
+            renderTabs(courseData);
+            setActiveDomain(activeDomainId);
+
+            // Show the map and hide loading
+            loadingDiv.classList.add('hidden');
+            mapContainer.classList.remove('hidden');
+        }
+
+        // Start the application
+        window.onload = fetchData;
+    </script>
+</body>
+</html>
