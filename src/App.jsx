@@ -29,10 +29,9 @@ export default function App() {
       setSession(data.session)
       setBooting(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
       if (!s) setProfileDone(false)
-      if (event === 'SIGNED_IN') supabase.rpc('log_my_login').then()
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -45,7 +44,7 @@ export default function App() {
       setProfile(data ?? null)
       setProfileDone(true)
     })
-  }, [session])
+  }, [session?.user?.id])
 
   if (booting || (session && !profileDone)) {
     return (
