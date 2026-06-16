@@ -29,9 +29,10 @@ export default function App() {
       setSession(data.session)
       setBooting(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
       if (!s) setProfileDone(false)
+      if (event === 'SIGNED_IN') supabase.rpc('log_my_login')
     })
     return () => sub.subscription.unsubscribe()
   }, [])

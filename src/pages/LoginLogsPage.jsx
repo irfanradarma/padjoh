@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
-const ACTION_LABEL = { login: 'Login', logout: 'Logout' }
-
 function fmtDate(iso) {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -10,12 +8,24 @@ function fmtDate(iso) {
     + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+function shortUA(ua) {
+  if (!ua) return '—'
+  if (/mobile/i.test(ua)) {
+    if (/android/i.test(ua)) return 'Android'
+    if (/iphone|ipad/i.test(ua)) return 'iOS'
+    return 'Mobile'
+  }
+  if (/windows/i.test(ua)) return 'Windows'
+  if (/mac os/i.test(ua)) return 'macOS'
+  if (/linux/i.test(ua)) return 'Linux'
+  return 'Desktop'
+}
+
 export default function LoginLogsPage() {
   const [logs, setLogs]       = useState([])
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState(null)
   const [search, setSearch]   = useState('')
-  const [filter, setFilter]   = useState('all')
   const [limit, setLimit]     = useState(300)
 
   useEffect(() => { load() }, [limit])
@@ -34,29 +44,22 @@ export default function LoginLogsPage() {
   }
 
   const filtered = useMemo(() => {
-    let result = logs
-    if (filter !== 'all') result = result.filter(l => l.action === filter)
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter(l =>
-        (l.name  ?? '').toLowerCase().includes(q) ||
-        (l.npm   ?? '').toLowerCase().includes(q) ||
-        (l.class ?? '').toLowerCase().includes(q) ||
-        (l.ip_address ?? '').includes(q)
-      )
-    }
-    return result
-  }, [logs, filter, search])
-
-  const loginCount  = logs.filter(l => l.action === 'login').length
-  const logoutCount = logs.filter(l => l.action === 'logout').length
+    if (!search) return logs
+    const q = search.toLowerCase()
+    return logs.filter(l =>
+      (l.name  ?? '').toLowerCase().includes(q) ||
+      (l.npm   ?? '').toLowerCase().includes(q) ||
+      (l.class ?? '').toLowerCase().includes(q) ||
+      (l.ip_address ?? '').includes(q)
+    )
+  }, [logs, search])
 
   return (
     <div className="page-content">
       <div className="page-header">
         <h2>Log Login Pengguna</h2>
         <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
-          {loginCount} login · {logoutCount} logout dari {limit} entri terakhir
+          {logs.length} login dari {limit} entri terakhir
         </p>
       </div>
 
@@ -68,11 +71,6 @@ export default function LoginLogsPage() {
           onChange={e => setSearch(e.target.value)}
         />
         <div className="ll-filter-row">
-          <select className="ll-select" value={filter} onChange={e => setFilter(e.target.value)}>
-            <option value="all">Semua aksi</option>
-            <option value="login">Login saja</option>
-            <option value="logout">Logout saja</option>
-          </select>
           <select className="ll-select" value={limit} onChange={e => setLimit(Number(e.target.value))}>
             <option value={100}>100 terakhir</option>
             <option value={300}>300 terakhir</option>
@@ -92,7 +90,7 @@ export default function LoginLogsPage() {
         <div className="um-load-err">
           <strong>Gagal memuat log:</strong> {loadErr}
           <div style={{ marginTop: 6, fontSize: 12 }}>
-            Jalankan <code>sql/patch_login_logs.sql</code> di Supabase Dashboard lalu muat ulang.
+            Jalankan <code>sql/patch_login_logs_v2.sql</code> di Supabase Dashboard lalu muat ulang.
           </div>
         </div>
       )}
@@ -100,7 +98,12 @@ export default function LoginLogsPage() {
       {loading ? (
         <div className="empty-state"><p>Memuat log…</p></div>
       ) : loadErr ? null : filtered.length === 0 ? (
-        <div className="empty-state"><p>Tidak ada data log ditemukan.</p></div>
+        <div className="empty-state">
+          <p>{logs.length === 0
+            ? 'Belum ada log. Login dari akun mahasiswa akan muncul di sini.'
+            : 'Tidak ada hasil untuk pencarian ini.'
+          }</p>
+        </div>
       ) : (
         <div className="ll-table-wrap">
           <table className="um-table ll-table">
@@ -110,8 +113,8 @@ export default function LoginLogsPage() {
                 <th>Nama</th>
                 <th>NPM / ID</th>
                 <th>Kelas</th>
-                <th>Aksi</th>
                 <th>IP Address</th>
+                <th>Perangkat</th>
               </tr>
             </thead>
             <tbody>
@@ -121,12 +124,8 @@ export default function LoginLogsPage() {
                   <td>{l.name ?? <span style={{ color: 'var(--muted)' }}>—</span>}</td>
                   <td className="um-td-npm">{l.npm ?? <span style={{ color: 'var(--muted)' }}>unknown</span>}</td>
                   <td>{l.class ?? '—'}</td>
-                  <td>
-                    <span className={`um-badge ${l.action === 'login' ? 'um-badge-ok' : 'um-badge-neutral'}`}>
-                      {ACTION_LABEL[l.action] ?? l.action}
-                    </span>
-                  </td>
                   <td className="ll-td-ip">{l.ip_address || '—'}</td>
+                  <td title={l.user_agent ?? ''} className="ll-td-ua">{shortUA(l.user_agent)}</td>
                 </tr>
               ))}
             </tbody>

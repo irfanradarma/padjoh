@@ -1947,4 +1947,5 @@ body {
 .ll-table { min-width: 680px; }
 .ll-td-time { white-space: nowrap; font-size: 12px; color: var(--muted); font-family: monospace; }
 .ll-td-ip   { font-size: 12px; color: var(--muted); font-family: monospace; white-space: nowrap; }
+.ll-td-ua   { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .um-badge-neutral { background: rgba(148,163,184,.15); color: var(--muted); }
