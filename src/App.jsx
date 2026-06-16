@@ -152,7 +152,11 @@ function AuthFlow() {
     const { data, error } = await supabase.auth.signUp({ email: npmToEmail(npm), password: pw })
     setBusy(false)
     if (error) { setError(error.message); return }
-    if (!data.session) setError('Akun dibuat, tapi sesi tidak ditemukan. Nonaktifkan konfirmasi email di Supabase → Auth → Providers → Email.')
+    if (!data.session) {
+      setError('Akun dibuat, tapi sesi tidak ditemukan. Nonaktifkan konfirmasi email di Supabase → Auth → Providers → Email.')
+      return
+    }
+    supabase.rpc('log_my_login')
   }
 
   async function doLogin(e) {
@@ -161,7 +165,8 @@ function AuthFlow() {
     setBusy(true)
     const { error } = await supabase.auth.signInWithPassword({ email: npmToEmail(npm), password: pw })
     setBusy(false)
-    if (error) setError(error.message)
+    if (error) { setError(error.message); return }
+    supabase.rpc('log_my_login')
   }
 
   return (
