@@ -95,6 +95,7 @@ function UserModal({ mode, user, onClose, onSaved }) {
 export default function UserManagementPage() {
   const [users, setUsers]     = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState(null)
   const [search, setSearch]   = useState('')
   const [modal, setModal]     = useState(null)
   const [busyId, setBusyId]   = useState(null)
@@ -103,8 +104,14 @@ export default function UserManagementPage() {
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.rpc('admin_get_all_users')
-    setUsers(Array.isArray(data) ? data : [])
+    setLoadErr(null)
+    const { data, error } = await supabase.rpc('admin_get_all_users')
+    if (error) {
+      setLoadErr(error.message)
+      setUsers([])
+    } else {
+      setUsers(Array.isArray(data) ? data : [])
+    }
     setLoading(false)
   }
 
@@ -176,9 +183,20 @@ export default function UserManagementPage() {
         </button>
       </div>
 
+      {loadErr && (
+        <div className="um-load-err">
+          <strong>Gagal memuat data:</strong> {loadErr}
+          {loadErr.includes('must_change_password') && (
+            <div style={{ marginTop: 6, fontSize: 12 }}>
+              Jalankan <code>sql/patch_password_flag.sql</code> di Supabase Dashboard lalu muat ulang.
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="empty-state"><p>Memuat data pengguna…</p></div>
-      ) : groups.length === 0 ? (
+      ) : loadErr ? null : groups.length === 0 ? (
         <div className="empty-state"><p>Tidak ada pengguna ditemukan.</p></div>
       ) : (
         groups.map(([grpLabel, members]) => (

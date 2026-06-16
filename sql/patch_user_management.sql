@@ -26,26 +26,44 @@ $$;
 grant execute on function public.get_my_profile() to authenticated;
 
 -- 2) Admin: list all users
+--    Uses dynamic SQL so it works whether or not must_change_password exists yet.
 create or replace function public.admin_get_all_users()
-returns jsonb language plpgsql security definer set search_path = public stable as $$
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_has_pw boolean;
+  v_sql    text;
+  v_result jsonb;
 begin
   if not (select is_admin from public.profiles where id = auth.uid()) then
     raise exception 'Unauthorized';
   end if;
-  return (
-    select coalesce(jsonb_agg(
-      jsonb_build_object(
-        'id',                   p.id,
-        'npm',                  p.npm,
-        'name',                 p.name,
-        'class',                p.class,
-        'is_admin',             p.is_admin,
-        'must_change_password', coalesce(p.must_change_password, false),
-        'created_at',           p.created_at
-      ) order by p.is_admin desc, p.class, p.name
-    ), '[]'::jsonb)
-    from public.profiles p
+
+  select exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles'
+      and column_name = 'must_change_password'
+  ) into v_has_pw;
+
+  v_sql := format(
+    $SQL$
+      select coalesce(jsonb_agg(
+        jsonb_build_object(
+          'id',                   p.id,
+          'npm',                  p.npm,
+          'name',                 p.name,
+          'class',                p.class,
+          'is_admin',             p.is_admin,
+          'must_change_password', %s,
+          'created_at',           p.created_at
+        ) order by p.is_admin desc, p.class, p.name
+      ), '[]'::jsonb)
+      from public.profiles p
+    $SQL$,
+    case when v_has_pw then 'coalesce(p.must_change_password, false)' else 'false' end
   );
+
+  execute v_sql into v_result;
+  return coalesce(v_result, '[]'::jsonb);
 end;
 $$;
 grant execute on function public.admin_get_all_users() to authenticated;
