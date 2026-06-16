@@ -9,6 +9,7 @@
 
 -- 1) get_my_profile — updated to expose must_change_password
 --    (column added in patch_password_flag.sql)
+drop function if exists public.get_my_profile();
 create or replace function public.get_my_profile()
 returns jsonb language sql security definer set search_path = public stable as $$
   select jsonb_build_object(
