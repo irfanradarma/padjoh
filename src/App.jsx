@@ -118,6 +118,11 @@ function StepDots({ step }) {
   )
 }
 
+async function logLogin() {
+  const { error } = await supabase.rpc('log_my_login')
+  if (error) console.warn('log_my_login error:', error.message)
+}
+
 function AuthFlow() {
   const [step, setStep] = useState('npm')
   const [npm, setNpm]   = useState('')
@@ -155,7 +160,7 @@ function AuthFlow() {
       setError('Akun dibuat, tapi sesi tidak ditemukan. Nonaktifkan konfirmasi email di Supabase → Auth → Providers → Email.')
       return
     }
-    supabase.rpc('log_my_login').then(({ error }) => { if (error) console.warn('log_my_login error:', error.message) })
+    void logLogin()
   }
 
   async function doLogin(e) {
@@ -165,7 +170,7 @@ function AuthFlow() {
     const { error } = await supabase.auth.signInWithPassword({ email: npmToEmail(npm), password: pw })
     setBusy(false)
     if (error) { setError(error.message); return }
-    supabase.rpc('log_my_login').then(({ error }) => { if (error) console.warn('log_my_login error:', error.message) })
+    void logLogin()
   }
 
   return (
