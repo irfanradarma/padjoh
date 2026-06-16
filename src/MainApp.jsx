@@ -6,11 +6,12 @@ import ClassPage from './pages/ClassPage'
 import MindmapPage from './pages/MindmapPage'
 import ForumPage from './pages/ForumPage'
 import UserManagementPage from './pages/UserManagementPage'
+import LoginLogsPage from './pages/LoginLogsPage'
 import DeadlinePage from './pages/DeadlinePage'
 import AppLogo from './components/AppLogo'
 
 // ── Hash routing ──────────────────────────────────────────────
-const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management']
+const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management', 'login-logs']
 
 function hashToPage(hash) {
   const h = (hash || '').replace(/^#\/?/, '')
@@ -38,6 +39,7 @@ const PAGE_LABELS = {
   forum:              'Forum',
   deadline:           'Kelola Deadline',
   'user-management':  'Manajemen Pengguna',
+  'login-logs':       'Log Login',
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -353,6 +355,17 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
               <span className="nav-label">Manajemen Pengguna</span>
             </div>
           )}
+
+          {profile.is_admin && (
+            <div
+              className={`nav-item${page.type === 'login-logs' ? ' active' : ''}`}
+              title="Log Login"
+              onClick={() => navigate({ type: 'login-logs' })}
+            >
+              <span className="nav-icon">📋</span>
+              <span className="nav-label">Log Login</span>
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -440,6 +453,11 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         {visited.has('user-management') && profile.is_admin && (
           <div style={{ display: page.type === 'user-management' ? '' : 'none' }}>
             <UserManagementPage />
+          </div>
+        )}
+        {visited.has('login-logs') && profile.is_admin && (
+          <div style={{ display: page.type === 'login-logs' ? '' : 'none' }}>
+            <LoginLogsPage />
           </div>
         )}
       </main>
