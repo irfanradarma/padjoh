@@ -32,7 +32,7 @@ export default function App() {
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
       if (!s) setProfileDone(false)
-      if (event === 'SIGNED_IN') supabase.rpc('log_my_login')
+      if (event === 'SIGNED_IN') supabase.rpc('log_my_login').then()
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -156,7 +156,7 @@ function AuthFlow() {
       setError('Akun dibuat, tapi sesi tidak ditemukan. Nonaktifkan konfirmasi email di Supabase → Auth → Providers → Email.')
       return
     }
-    supabase.rpc('log_my_login')
+    supabase.rpc('log_my_login').then()
   }
 
   async function doLogin(e) {
@@ -166,7 +166,7 @@ function AuthFlow() {
     const { error } = await supabase.auth.signInWithPassword({ email: npmToEmail(npm), password: pw })
     setBusy(false)
     if (error) { setError(error.message); return }
-    supabase.rpc('log_my_login')
+    supabase.rpc('log_my_login').then()
   }
 
   return (
