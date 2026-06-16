@@ -1929,3 +1929,9 @@ body {
   border-radius: 6px; padding: 8px 12px; font-size: 12px;
   color: var(--muted); margin-top: 14px;
 }
+.um-load-err {
+  background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35);
+  border-radius: 8px; padding: 12px 16px; font-size: 13px;
+  color: #f87171; margin-bottom: 16px;
+}
+.um-load-err code { background: rgba(255,255,255,.1); border-radius: 4px; padding: 2px 6px; }
