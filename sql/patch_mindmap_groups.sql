@@ -28,6 +28,7 @@ alter table public.mindmap_group_data enable row level security;
 grant all on public.mindmap_group_data to service_role;
 
 -- 3) RLS: group members can read their group's shared data (needed for Realtime)
+drop policy if exists "group_members_can_read" on public.mindmap_group_data;
 create policy "group_members_can_read" on public.mindmap_group_data
   for select to authenticated
   using (

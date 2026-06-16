@@ -1761,3 +1761,171 @@ body {
   font-size: 13px; color: var(--text);
   line-height: 1.5; white-space: pre-wrap; margin-bottom: 6px;
 }
+
+/* ── Forum: image attachment in compose ── */
+.fr-attach-btn {
+  background: none; border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px;
+  cursor: pointer; font-size: 15px; color: var(--muted);
+  display: inline-flex; align-items: center; line-height: 1;
+  transition: border-color .15s, color .15s;
+}
+.fr-attach-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.fr-compose-attachment {
+  position: relative; display: inline-block; margin-top: 10px;
+}
+.fr-compose-img {
+  max-height: 220px; max-width: 100%; border-radius: 8px;
+  object-fit: cover; display: block;
+  border: 1px solid var(--border);
+}
+.fr-compose-remove {
+  position: absolute; top: 5px; right: 5px;
+  background: rgba(0,0,0,0.65); color: #fff;
+  border: none; border-radius: 50%;
+  width: 22px; height: 22px; cursor: pointer;
+  font-size: 13px; display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.fr-compose-link-preview { margin-top: 10px; }
+
+/* ── Forum: image in post / reply ── */
+.fr-post-img {
+  width: 100%; max-height: 480px; object-fit: contain;
+  border-radius: 8px; margin-top: 10px; display: block;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+/* ── Forum: YouTube embed ── */
+.fr-yt-wrap {
+  margin-top: 10px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.fr-yt-frame {
+  width: 100%; aspect-ratio: 16 / 9; display: block; border: none;
+}
+
+/* ── Forum: link preview card ── */
+.fr-link-card {
+  display: flex; gap: 0; margin-top: 10px;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  text-decoration: none; color: inherit; background: var(--surface2);
+  transition: border-color .15s;
+}
+.fr-link-card:hover { border-color: var(--accent); }
+.fr-link-card-img {
+  width: 110px; flex-shrink: 0; object-fit: cover;
+}
+.fr-link-card-body {
+  padding: 10px 12px; min-width: 0; display: flex;
+  flex-direction: column; justify-content: center; gap: 3px;
+}
+.fr-link-card-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.fr-link-card-desc {
+  font-size: 12px; color: var(--muted); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.fr-link-card-host { font-size: 11px; color: var(--accent); }
+
+/* ── Password change modal ── */
+.pw-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.78); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 500; padding: 20px;
+}
+.pw-modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 32px 28px;
+  max-width: 380px; width: 100%; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.pw-modal-icon   { font-size: 40px; margin-bottom: 12px; }
+.pw-modal-title  { font-size: 18px; font-weight: 700; color: var(--text); margin: 0 0 8px; }
+.pw-modal-desc   { font-size: 13px; color: var(--muted); margin: 0 0 20px; line-height: 1.6; }
+.pw-modal-err    { font-size: 12px; color: var(--danger); margin-top: 8px; text-align: left; }
+.pw-modal-btns   { display: flex; gap: 10px; margin-top: 16px; }
+.pw-modal .input { text-align: left; }
+
+/* ── Sidebar: ganti password link ── */
+.sidebar-pw-link {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; color: var(--accent); padding: 2px 0 0;
+  opacity: 0.8; transition: opacity .15s;
+}
+.sidebar-pw-link:hover { opacity: 1; text-decoration: underline; }
+
+/* ── User Management page ── */
+.um-toolbar {
+  display: flex; gap: 12px; align-items: center; margin-bottom: 20px;
+}
+.um-search { flex: 1; }
+
+.um-class-group { margin-bottom: 24px; }
+.um-class-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0 6px; border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+.um-class-name  { font-size: 13px; font-weight: 700; color: var(--text); }
+.um-class-count { font-size: 12px; color: var(--muted); }
+
+.um-table-wrap { overflow-x: auto; }
+.um-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.um-table th {
+  text-align: left; padding: 8px 10px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.um-table td {
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  vertical-align: middle; color: var(--text);
+}
+.um-table tr:last-child td { border-bottom: none; }
+.um-table tr:hover td { background: var(--surface2); }
+.um-row-busy td { opacity: 0.5; }
+
+.um-td-name { font-weight: 500; }
+.um-td-npm  { font-family: monospace; font-size: 12px; color: var(--muted); }
+.um-td-actions { white-space: nowrap; display: flex; gap: 6px; align-items: center; }
+
+.um-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 10px;
+  font-size: 11px; font-weight: 600;
+}
+.um-badge-admin   { background: rgba(99,102,241,.18); color: var(--accent); }
+.um-badge-student { background: var(--surface2); color: var(--muted); }
+.um-badge-warn    { background: rgba(210,153,34,.18); color: var(--warning); }
+.um-badge-ok      { background: rgba(63,185,80,.15); color: var(--success); }
+
+.um-btn-sm {
+  padding: 3px 10px; border-radius: 5px; font-size: 12px;
+  border: 1px solid var(--border); background: none;
+  color: var(--text); cursor: pointer;
+}
+.um-btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+.um-btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
+.um-btn-danger { color: var(--danger) !important; }
+.um-btn-danger:hover { border-color: var(--danger) !important; }
+
+.um-field { margin-bottom: 14px; }
+.um-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.um-hint  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.um-checkbox-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.um-info-box {
+  background: rgba(99,102,241,.1); border: 1px solid var(--accent-dim);
+  border-radius: 6px; padding: 8px 12px; font-size: 12px;
+  color: var(--muted); margin-top: 14px;
+}

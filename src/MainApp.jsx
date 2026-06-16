@@ -5,11 +5,12 @@ import DashboardPage from './pages/DashboardPage'
 import ClassPage from './pages/ClassPage'
 import MindmapPage from './pages/MindmapPage'
 import ForumPage from './pages/ForumPage'
+import UserManagementPage from './pages/UserManagementPage'
 import DeadlinePage from './pages/DeadlinePage'
 import AppLogo from './components/AppLogo'
 
 // ── Hash routing ──────────────────────────────────────────────
-const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline']
+const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management']
 
 function hashToPage(hash) {
   const h = (hash || '').replace(/^#\/?/, '')
@@ -32,13 +33,80 @@ function sectionGroup(sectionId) {
 }
 
 const PAGE_LABELS = {
-  dashboard: 'Dashboard',
-  mindmap:   'Mind Map',
-  forum:     'Forum',
-  deadline:  'Kelola Deadline',
+  dashboard:          'Dashboard',
+  mindmap:            'Mind Map',
+  forum:              'Forum',
+  deadline:           'Kelola Deadline',
+  'user-management':  'Manajemen Pengguna',
 }
 
 // ─────────────────────────────────────────────────────────────
+
+function ChangePasswordModal({ onClose, isForced = false }) {
+  const [pw, setPw]         = useState('')
+  const [pw2, setPw2]       = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr]       = useState('')
+
+  async function submit(e) {
+    e.preventDefault()
+    if (pw.length < 8) { setErr('Password minimal 8 karakter.'); return }
+    if (pw !== pw2)    { setErr('Konfirmasi password tidak cocok.'); return }
+    setSaving(true); setErr('')
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    if (error) { setErr(error.message); setSaving(false); return }
+    await supabase.rpc('mark_password_changed')
+    onClose()
+  }
+
+  return (
+    <div className="pw-overlay">
+      <div className="pw-modal">
+        <div className="pw-modal-icon">🔐</div>
+        <h3 className="pw-modal-title">
+          {isForced ? 'Ganti Password Default' : 'Ganti Password'}
+        </h3>
+        {isForced && (
+          <p className="pw-modal-desc">
+            Akun Anda masih menggunakan password bawaan. Ganti sekarang untuk keamanan akun Anda.
+          </p>
+        )}
+        <form onSubmit={submit}>
+          <input
+            type="password"
+            className="input"
+            value={pw}
+            onChange={e => setPw(e.target.value)}
+            placeholder="Password baru (min. 8 karakter)"
+            autoFocus
+          />
+          <input
+            type="password"
+            className="input"
+            value={pw2}
+            onChange={e => setPw2(e.target.value)}
+            placeholder="Konfirmasi password baru"
+            style={{ marginTop: 10 }}
+          />
+          {err && <div className="pw-modal-err">{err}</div>}
+          <div className="pw-modal-btns">
+            <button type="button" className="btn" style={{ flex: 1 }} onClick={onClose}>
+              {isForced ? 'Nanti' : 'Batal'}
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ flex: 2 }}
+              disabled={saving || !pw || !pw2}
+            >
+              {saving ? 'Menyimpan…' : 'Ganti Password'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 export default function MainApp({ session, profile, theme, toggleTheme }) {
   const initialPage = hashToPage(window.location.hash)
@@ -47,6 +115,8 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   const [starsMap, setStarsMap]       = useState({})
   const [masqAs, setMasqAs]           = useState(null)
   const [allStudents, setAllStudents] = useState([])
+  const [pwModalDone, setPwModalDone]   = useState(false)
+  const [manualPwOpen, setManualPwOpen] = useState(false)
   const [sidebarCollapsed, setCollapsed] = useState(false)  // desktop icon-only
   const [sidebarOpen, setSidebarOpen]    = useState(false)  // mobile drawer
 
@@ -126,7 +196,9 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   const initials = (profile.name ?? profile.npm ?? '?')
     .split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
-  const isMasq = !!masqAs
+  const isMasq     = !!masqAs
+  const autoPwShow = !masqAs && !profile.is_admin && profile.must_change_password === true && !pwModalDone
+  function closePwModal() { setManualPwOpen(false); setPwModalDone(true) }
   const cls = `sidebar${sidebarCollapsed ? ' collapsed' : ''}${sidebarOpen ? ' mobile-open' : ''}`
 
   const pageLabel = page.type === 'class'
@@ -158,6 +230,11 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
                 ? <span style={{ color: 'var(--warning)' }}>👁️ Mode Uji</span>
                 : profile.is_admin ? '👑 Administrator' : profile.class}
             </div>
+            {!profile.is_admin && !isMasq && !sidebarCollapsed && (
+              <button className="sidebar-pw-link" onClick={() => setManualPwOpen(true)}>
+                Ganti Password
+              </button>
+            )}
           </div>
         </div>
 
@@ -265,6 +342,17 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             <span className="nav-icon">💬</span>
             <span className="nav-label">Forum</span>
           </div>
+
+          {profile.is_admin && (
+            <div
+              className={`nav-item${page.type === 'user-management' ? ' active' : ''}`}
+              title="Manajemen Pengguna"
+              onClick={() => navigate({ type: 'user-management' })}
+            >
+              <span className="nav-icon">👥</span>
+              <span className="nav-label">Manajemen Pengguna</span>
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -349,7 +437,19 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             <DeadlinePage />
           </div>
         )}
+        {visited.has('user-management') && profile.is_admin && (
+          <div style={{ display: page.type === 'user-management' ? '' : 'none' }}>
+            <UserManagementPage />
+          </div>
+        )}
       </main>
+
+      {(manualPwOpen || autoPwShow) && (
+        <ChangePasswordModal
+          isForced={autoPwShow && !manualPwOpen}
+          onClose={closePwModal}
+        />
+      )}
     </div>
   )
 }
