@@ -226,47 +226,97 @@ function StudentLobby({ quizTitle }) {
   )
 }
 
-// ── Student: questions ────────────────────────────────────────
+// ── Student: questions + submit ───────────────────────────────
 function StudentQuizView({ sessionId, questions, startedAt, timeLimitSec }) {
   const [answers, setAnswers]       = useState({})
-  const [submitting, setSubmitting] = useState({})
+  const [savingQ, setSavingQ]       = useState({})   // per-question saving indicator
+  const [submitted, setSubmitted]   = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const autoSubmitFired             = useRef(false)
   const remaining = useCountdown(startedAt, timeLimitSec)
-  const timeUp = remaining !== null && remaining <= 0
+  const timeUp    = remaining !== null && remaining <= 0
+  const locked    = submitted || timeUp
 
+  // Pre-fill previously saved answers
   useEffect(() => {
     const initial = {}
     for (const q of questions) if (q.my_answer) initial[q.id] = q.my_answer
     setAnswers(initial)
   }, [questions])
 
+  // Auto-submit when timer hits 0
+  useEffect(() => {
+    if (!timeUp || autoSubmitFired.current || submitted) return
+    autoSubmitFired.current = true
+    supabase.rpc('quiz_submit', { p_session_id: sessionId }).then(() => setSubmitted(true))
+  }, [timeUp, submitted, sessionId])
+
   async function pickAnswer(questionId, optionId) {
-    if (timeUp) return
+    if (locked) return
     setAnswers(prev => ({ ...prev, [questionId]: optionId }))
-    setSubmitting(prev => ({ ...prev, [questionId]: true }))
+    setSavingQ(prev => ({ ...prev, [questionId]: true }))
     await supabase.rpc('quiz_submit_answer', {
       p_session_id: sessionId, p_question_id: questionId, p_option_id: optionId,
     })
-    setSubmitting(prev => ({ ...prev, [questionId]: false }))
+    setSavingQ(prev => ({ ...prev, [questionId]: false }))
+  }
+
+  async function handleSubmit() {
+    if (locked || submitting) return
+    const answered = Object.keys(answers).length
+    const total    = questions.length
+    const unanswered = total - answered
+    const msg = unanswered > 0
+      ? `Masih ada ${unanswered} soal yang belum dijawab. Yakin ingin mengumpulkan sekarang?`
+      : 'Yakin ingin mengumpulkan jawaban? Jawaban tidak dapat diubah setelah dikumpulkan.'
+    if (!confirm(msg)) return
+    setSubmitting(true)
+    await supabase.rpc('quiz_submit', { p_session_id: sessionId })
+    setSubmitted(true)
+    setSubmitting(false)
   }
 
   const answered = Object.keys(answers).length
+  const total    = questions.length
 
   return (
     <div className="qv-student-quiz">
-      <div className={`qv-quiz-topbar${timeUp ? ' time-up' : ''}`}>
-        <span className="qv-quiz-progress">{answered}/{questions.length} dijawab</span>
-        <span className={`qv-quiz-timer${remaining !== null && remaining < 60 ? ' urgent' : ''}`}>
-          {timeUp ? '⏰ Waktu Habis!' : `⏱ ${fmtTime(remaining ?? timeLimitSec)}`}
+      {/* Sticky top bar */}
+      <div className={`qv-quiz-topbar${timeUp ? ' time-up' : submitted ? ' submitted' : ''}`}>
+        <span className="qv-quiz-progress">
+          {answered}/{total} dijawab
         </span>
+        <span className={`qv-quiz-timer${remaining !== null && remaining < 60 && !timeUp ? ' urgent' : ''}`}>
+          {timeUp ? '⏰ Waktu Habis' : `⏱ ${fmtTime(remaining ?? timeLimitSec)}`}
+        </span>
+        {!submitted && !timeUp && (
+          <button
+            className="btn btn-primary qv-topbar-submit"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? '…' : '✅ Kumpulkan'}
+          </button>
+        )}
+        {submitted && <span className="qv-submitted-chip">✅ Dikumpulkan</span>}
       </div>
-      {timeUp && (
-        <div className="qv-time-up-banner">
-          Waktu habis! Menunggu admin menutup kuis…
+
+      {/* Status banners */}
+      {submitted && !timeUp && (
+        <div className="qv-submitted-banner">
+          ✅ Jawaban berhasil dikumpulkan! Menunggu admin menutup kuis…
         </div>
       )}
+      {timeUp && (
+        <div className="qv-time-up-banner">
+          ⏰ Waktu habis — jawaban otomatis dikumpulkan. Menunggu admin menutup kuis…
+        </div>
+      )}
+
+      {/* Questions (read-only when locked) */}
       <div className="qv-questions-list">
         {questions.map((q, qi) => (
-          <div key={q.id} className="qv-question-card">
+          <div key={q.id} className={`qv-question-card${locked ? ' locked' : ''}`}>
             <div className="qv-q-num">Soal {qi + 1}</div>
             {q.question_text && <div className="qv-q-text">{q.question_text}</div>}
             {q.question_type === 'image' && q.question_url && (
@@ -279,12 +329,12 @@ function StudentQuizView({ sessionId, questions, startedAt, timeLimitSec }) {
               {q.options.map((o, oi) => (
                 <label
                   key={o.id}
-                  className={`qv-option${answers[q.id] === o.id ? ' selected' : ''}${timeUp ? ' disabled' : ''}`}
-                  onClick={() => !timeUp && pickAnswer(q.id, o.id)}
+                  className={`qv-option${answers[q.id] === o.id ? ' selected' : ''}${locked ? ' disabled' : ''}`}
+                  onClick={() => pickAnswer(q.id, o.id)}
                 >
                   <span className="qv-opt-lbl">{String.fromCharCode(65 + oi)}.</span>
-                  <span>{o.option_text}</span>
-                  {submitting[q.id] && answers[q.id] === o.id && (
+                  <span className="qv-opt-text">{o.option_text}</span>
+                  {savingQ[q.id] && answers[q.id] === o.id && (
                     <span className="qv-saving">…</span>
                   )}
                 </label>
@@ -293,6 +343,25 @@ function StudentQuizView({ sessionId, questions, startedAt, timeLimitSec }) {
           </div>
         ))}
       </div>
+
+      {/* Bottom submit — only when not locked */}
+      {!locked && total > 0 && (
+        <div className="qv-bottom-submit">
+          <div className="qv-bottom-submit-info">
+            {answered === total
+              ? `Semua ${total} soal sudah dijawab`
+              : `${answered} dari ${total} soal dijawab (${total - answered} belum)`}
+          </div>
+          <button
+            className={`btn btn-primary${answered < total ? ' btn-warn-outline' : ''}`}
+            onClick={handleSubmit}
+            disabled={submitting}
+            style={{ minWidth: 180 }}
+          >
+            {submitting ? 'Mengumpulkan…' : '✅ Kumpulkan Jawaban'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
