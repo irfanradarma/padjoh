@@ -411,7 +411,7 @@ function AdminQuizSection({ sectionId, students, onOpenSession }) {
         <div key={dep.deployment_id} className="quiz-deploy-card">
           <div className="quiz-deploy-header">
             <span className="quiz-deploy-title">{dep.title}</span>
-            <span className="quiz-deploy-meta">{Math.round(dep.time_limit / 60)} mnt{dep.tournament ? ' · 🏆 Turnamen' : ''}</span>
+            <span className="quiz-deploy-meta">{Math.round(dep.time_limit / 60)} mnt</span>
           </div>
           <div className="quiz-class-rows">
             {classes.map(cls => {
@@ -475,7 +475,6 @@ function StudentQuizSection({ sectionId, onOpenSession }) {
             <div className="quiz-student-title">{q.title}</div>
             <div className="quiz-student-meta">
               {Math.round(q.time_limit / 60)} menit
-              {q.tournament ? ' · 🏆 Turnamen' : ''}
               {q.my_result && ` · Skor: ${Number(q.my_result.total).toFixed(1)} (#${q.my_result.rank})`}
             </div>
           </div>

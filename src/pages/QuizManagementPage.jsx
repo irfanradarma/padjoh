@@ -1,6 +1,87 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from '../supabaseClient'
 import { SECTIONS } from '../sections'
+
+// ── XLSX helpers ──────────────────────────────────────────────
+const TEMPLATE_HEADERS = [
+  'No', 'Tipe (text/image/video)', 'Pertanyaan', 'URL (opsional, untuk image/video)',
+  'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D',
+  'Jawaban Benar (A/B/C/D)',
+]
+const TEMPLATE_EXAMPLES = [
+  [1, 'text', 'Apa yang dimaksud dengan IT Governance?', '',
+   'Kerangka pengelolaan dan kontrol TI', 'Sistem operasi jaringan', 'Protokol komunikasi data', 'Database management',
+   'A'],
+  [2, 'text', 'Manakah yang merupakan framework IT Governance?', '',
+   'ITIL', 'COBIT', 'ISO 27001', 'Semua benar',
+   'D'],
+  [3, 'image', 'Apa nama diagram berikut ini?', 'https://contoh.com/gambar.png',
+   'Flowchart', 'ERD', 'DFD', 'UML',
+   'B'],
+]
+
+function downloadTemplate() {
+  const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...TEMPLATE_EXAMPLES])
+  ws['!cols'] = [
+    { wch: 5 }, { wch: 22 }, { wch: 48 }, { wch: 34 },
+    { wch: 26 }, { wch: 26 }, { wch: 26 }, { wch: 26 }, { wch: 24 },
+  ]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Soal Kuis')
+  XLSX.writeFile(wb, 'template_soal_kuis.xlsx')
+}
+
+function parseXlsxFile(file, startOrderNum, onDone, onError) {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+      // rows[0] is the header — skip it; filter out rows with no question text
+      const data = rows.slice(1).filter(r => String(r[2] ?? '').trim())
+
+      if (data.length === 0) { onError('Tidak ada soal ditemukan dalam file.'); return }
+
+      const parsed = data.map((row, i) => {
+        const rawType = String(row[1] ?? '').trim().toLowerCase()
+        const qType   = ['image', 'video'].includes(rawType) ? rawType : 'text'
+        const qText   = String(row[2] ?? '').trim()
+        const qUrl    = String(row[3] ?? '').trim()
+        const opts    = [row[4], row[5], row[6], row[7]]
+          .map(v => String(v ?? '').trim())
+          .filter(v => v)
+        const correctLetter = String(row[8] ?? '').trim().toUpperCase()
+        const correctIdx    = { A: 0, B: 1, C: 2, D: 3 }[correctLetter] ?? 0
+
+        if (opts.length < 2) return null   // skip malformed rows
+
+        return {
+          order_num:     startOrderNum + i,
+          question_type: qType,
+          question_text: qText,
+          question_url:  qUrl,
+          options: opts.map((text, oi) => ({
+            order_num:   oi + 1,
+            option_text: text,
+            is_correct:  oi === correctIdx,
+            _key:        Math.random(),
+          })),
+          _key: Math.random(),
+        }
+      }).filter(Boolean)
+
+      if (parsed.length === 0) { onError('Tidak ada soal valid dalam file. Pastikan kolom Pilihan A & B terisi.'); return }
+      onDone(parsed)
+    } catch (err) {
+      onError('Gagal membaca file: ' + err.message)
+    }
+  }
+  reader.onerror = () => onError('Gagal membuka file.')
+  reader.readAsArrayBuffer(file)
+}
 
 // ── helpers ───────────────────────────────────────────────────
 const BLANK_QUIZ = {
@@ -192,6 +273,10 @@ function GeneralTab({ form, setForm }) {
 
 // ── Questions tab ─────────────────────────────────────────────
 function QuestionsTab({ questions, setQuestions }) {
+  const importRef                 = useRef()
+  const [importErr, setImportErr] = useState('')
+  const [importing, setImporting] = useState(false)
+
   function addQuestion() {
     setQuestions(qs => [...qs, BLANK_QUESTION(qs.length + 1)])
   }
@@ -214,10 +299,59 @@ function QuestionsTab({ questions, setQuestions }) {
     setQuestions(next.map((q, i) => ({ ...q, order_num: i + 1 })))
   }
 
+  function handleImport(e) {
+    const file = e.target.files[0]
+    e.target.value = ''
+    if (!file) return
+    setImporting(true); setImportErr('')
+    parseXlsxFile(
+      file,
+      questions.length + 1,
+      (parsed) => {
+        setQuestions(qs => [
+          ...qs,
+          ...parsed.map((q, i) => ({ ...q, order_num: qs.length + i + 1 })),
+        ])
+        setImporting(false)
+      },
+      (err) => { setImportErr(err); setImporting(false) }
+    )
+  }
+
   return (
     <div className="qm-questions-tab">
+      {/* Toolbar */}
+      <div className="qm-q-toolbar">
+        <span className="qm-q-count">
+          {questions.length} pertanyaan
+        </span>
+        <div className="qm-q-toolbar-right">
+          <button className="btn-sm" onClick={downloadTemplate} title="Unduh template XLSX">
+            ⬇ Unduh Template
+          </button>
+          <button
+            className="btn-sm btn-primary"
+            onClick={() => importRef.current.click()}
+            disabled={importing}
+            title="Impor soal dari file XLSX"
+          >
+            {importing ? '⏳ Mengimpor…' : '📥 Impor XLSX'}
+          </button>
+          <input
+            ref={importRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: 'none' }}
+            onChange={handleImport}
+          />
+        </div>
+      </div>
+      {importErr && <div className="qm-err">{importErr}</div>}
+
       {questions.length === 0 && (
-        <div className="empty-state"><p>Belum ada pertanyaan. Klik tombol di bawah untuk menambah.</p></div>
+        <div className="empty-state">
+          <p>Belum ada pertanyaan. Tambah manual atau impor dari file XLSX.</p>
+        </div>
       )}
       {questions.map((q, idx) => (
         <QuestionCard
