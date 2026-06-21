@@ -14,6 +14,16 @@ const LEVELS = ['level1', 'level2', 'level3', 'level4', 'level5']
 const LEVEL_LABELS = ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5']
 const emptyRow = () => ({ level1: '', level2: '', level3: '', level4: '', level5: '', summary: '' })
 
+// ── AI grading defaults ───────────────────────────────────────
+const DEFAULT_RUBRIC = {
+  criteria: [
+    { name: 'Kelengkapan Topik',  max_score: 30, description: 'Seberapa lengkap topik IS Audit untuk domain ini tercakup dalam mind map' },
+    { name: 'Struktur Hierarki',  max_score: 25, description: 'Kualitas organisasi hierarki dan keterhubungan antar node' },
+    { name: 'Kedalaman Analisis', max_score: 25, description: 'Tingkat detail dan kedalaman pada setiap cabang mind map' },
+    { name: 'Akurasi Konten',     max_score: 20, description: 'Kebenaran dan relevansi konten sesuai standar IS Audit' },
+  ],
+}
+
 const TEMPLATE_ROWS = [
   ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Summary'],
   ['IT Governance', '', '', '', '', 'Overview of IT governance framework and objectives'],
@@ -864,6 +874,268 @@ function GroupManageTab({ domain }) {
   )
 }
 
+// ── Rubric editor (admin) ─────────────────────────────────────
+function RubricEditor({ rubric, onChange }) {
+  const total = rubric.criteria.reduce((s, c) => s + Number(c.max_score || 0), 0)
+
+  function update(i, field, val) {
+    onChange({
+      ...rubric,
+      criteria: rubric.criteria.map((c, j) =>
+        j === i ? { ...c, [field]: field === 'max_score' ? Number(val) : val } : c
+      ),
+    })
+  }
+
+  return (
+    <div className="gr-rubric-editor">
+      <div className="gr-rubric-total-row">
+        <span className="gr-rubric-sub">Edit rubrik sebelum menilai.</span>
+        <span className={`gr-rubric-total${total !== 100 ? ' gr-rubric-warn' : ''}`}>Total: {total} / 100</span>
+      </div>
+      {rubric.criteria.map((c, i) => (
+        <div key={i} className="gr-rubric-row">
+          <div className="gr-rubric-top">
+            <input className="input gr-rubric-name" value={c.name}
+              onChange={e => update(i, 'name', e.target.value)} placeholder="Nama kriteria" />
+            <div className="gr-rubric-score-wrap">
+              <input type="number" min="0" max="100" className="input gr-rubric-score"
+                value={c.max_score} onChange={e => update(i, 'max_score', e.target.value)} />
+              <span className="gr-rubric-pts">pts</span>
+            </div>
+          </div>
+          <input className="input gr-rubric-desc" value={c.description}
+            onChange={e => update(i, 'description', e.target.value)} placeholder="Deskripsi kriteria" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Grade tab (admin) ─────────────────────────────────────────
+function GradeTab({ domain }) {
+  const [rubric, setRubric]         = useState(DEFAULT_RUBRIC)
+  const [rubricOpen, setRubricOpen] = useState(false)
+  const [groups, setGroups]         = useState([])
+  const [grades, setGrades]         = useState([])
+  const [assessing, setAssessing]   = useState(null) // { class, group_num } | null
+  const [assessErr, setAssessErr]   = useState(null)
+  const [gradeModal, setGradeModal] = useState(null)
+  const [loading, setLoading]       = useState(true)
+
+  useEffect(() => { loadAll() }, [domain])
+
+  async function loadAll() {
+    setLoading(true)
+    const [{ data: studs }, { data: gr }] = await Promise.all([
+      supabase.rpc('admin_get_mindmap_groups', { p_domain: domain }),
+      supabase.rpc('admin_get_mindmap_grades', { p_domain: domain }),
+    ])
+    const groupMap = {}
+    for (const s of (studs ?? [])) {
+      if (!s.group_num) continue
+      const key = `${s.class}__${s.group_num}`
+      if (!groupMap[key]) groupMap[key] = { class: s.class, group_num: s.group_num, members: [] }
+      groupMap[key].members.push(s)
+    }
+    setGroups(Object.values(groupMap).sort((a, b) =>
+      a.class.localeCompare(b.class) || a.group_num - b.group_num
+    ))
+    setGrades(Array.isArray(gr) ? gr : [])
+    setLoading(false)
+  }
+
+  function gradeOf(cls, groupNum) {
+    return grades.find(g => g.class === cls && g.group_num === groupNum && g.grade != null)
+  }
+
+  async function runAssessment(cls, groupNum) {
+    const { data: rows, error: rowErr } = await supabase.rpc('admin_get_group_mindmap_data', {
+      p_domain: domain, p_class: cls, p_group_num: groupNum,
+    })
+    if (rowErr) throw new Error(rowErr.message)
+
+    const { data: result, error: fnErr } = await supabase.functions.invoke('assess-mindmap', {
+      body: { rows: rows ?? [], rubric, domain },
+    })
+    if (fnErr) throw new Error(fnErr.message)
+    if (result?.error) throw new Error(result.error)
+
+    const { error: saveErr } = await supabase.rpc('admin_save_mindmap_grade', {
+      p_domain: domain, p_class: cls, p_group_num: groupNum,
+      p_grade: result.total_score,
+      p_explanation: JSON.stringify(result),
+      p_rubric: rubric,
+    })
+    if (saveErr) throw new Error(saveErr.message)
+  }
+
+  async function assessGroup(cls, groupNum) {
+    setAssessErr(null)
+    setAssessing({ class: cls, group_num: groupNum })
+    try {
+      await runAssessment(cls, groupNum)
+      await loadAll()
+    } catch (err) {
+      setAssessErr(`Kelompok ${cls}-${groupNum}: ${err.message}`)
+    }
+    setAssessing(null)
+  }
+
+  async function assessAll() {
+    setAssessErr(null)
+    for (const g of groups) {
+      setAssessing({ class: g.class, group_num: g.group_num })
+      try {
+        await runAssessment(g.class, g.group_num)
+      } catch (err) {
+        setAssessErr(`Kelompok ${g.class}-${g.group_num}: ${err.message}`)
+      }
+    }
+    await loadAll()
+    setAssessing(null)
+  }
+
+  const isBusy = assessing !== null
+
+  if (gradeModal) {
+    let parsed = null
+    try { parsed = JSON.parse(gradeModal.explanation) } catch {}
+    return (
+      <div className="pw-overlay">
+        <div className="pw-modal gr-modal">
+          <h3 className="pw-modal-title">
+            {gradeModal.name} · Kelompok {gradeModal.group_num} · Nilai {gradeModal.grade}
+          </h3>
+          {parsed ? (
+            <>
+              <table className="gr-score-table">
+                <thead><tr><th>Kriteria</th><th>Skor</th><th>Maks</th><th>Komentar</th></tr></thead>
+                <tbody>
+                  {(parsed.scores ?? []).map((s, i) => (
+                    <tr key={i}>
+                      <td>{s.criterion}</td>
+                      <td className="gr-score-val">{s.score}</td>
+                      <td className="gr-score-max">/{s.max_score}</td>
+                      <td>{s.comment}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {parsed.summary && <p className="gr-summary">{parsed.summary}</p>}
+            </>
+          ) : (
+            <p className="gr-raw-explanation">{gradeModal.explanation}</p>
+          )}
+          <div className="pw-modal-btns">
+            <button className="btn btn-primary" onClick={() => setGradeModal(null)}>Tutup</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) return <div className="empty-state"><p>Memuat data kelompok…</p></div>
+
+  const byClass = {}
+  for (const g of groups) {
+    if (!byClass[g.class]) byClass[g.class] = []
+    byClass[g.class].push(g)
+  }
+  const gradedStudents = grades.filter(g => g.grade != null)
+
+  return (
+    <div className="gr-wrap">
+      <div className="gr-rubric-section">
+        <button className="gr-rubric-toggle" onClick={() => setRubricOpen(x => !x)}>
+          📋 Rubrik Penilaian {rubricOpen ? '▲' : '▼'}
+        </button>
+        {rubricOpen && (
+          <div className="gr-rubric-body">
+            <RubricEditor rubric={rubric} onChange={setRubric} />
+            <button className="btn-sm" style={{ marginTop: 10 }} onClick={() => setRubric(DEFAULT_RUBRIC)}>
+              ↺ Reset ke Default
+            </button>
+          </div>
+        )}
+      </div>
+
+      {assessErr && <div className="um-load-err">{assessErr}</div>}
+
+      {groups.length === 0 ? (
+        <div className="empty-state">
+          <div className="icon">👥</div>
+          <p>Belum ada kelompok untuk domain <strong>{domain}</strong>.<br />
+            Atur kelompok di tab "Kelola Kelompok" terlebih dahulu.</p>
+        </div>
+      ) : (
+        <>
+          <div className="gr-group-section">
+            <div className="gr-group-header">
+              <span className="gr-section-title">Kelompok Domain {domain}</span>
+              <button className="btn btn-primary gr-assess-all-btn" onClick={assessAll} disabled={isBusy}>
+                {isBusy ? '⏳ Menilai…' : '🤖 Nilai Semua Kelompok'}
+              </button>
+            </div>
+
+            {Object.entries(byClass).map(([cls, clsGroups]) => (
+              <div key={cls} className="gr-class-section">
+                <div className="gr-class-header">{cls}</div>
+                <div className="gr-group-list">
+                  {clsGroups.map(grp => {
+                    const existing = gradeOf(cls, grp.group_num)
+                    const thisBusy = assessing?.class === cls && assessing?.group_num === grp.group_num
+                    return (
+                      <div key={grp.group_num} className="gr-group-card">
+                        <div className="gr-group-info">
+                          <span className="gr-group-label">Kelompok {grp.group_num}</span>
+                          <span className="gr-group-members">{grp.members.map(m => m.name).join(', ')}</span>
+                        </div>
+                        <div className="gr-group-right">
+                          {existing && <span className="gr-grade-badge">{existing.grade}</span>}
+                          <button className="btn-sm btn-sm-primary"
+                            onClick={() => assessGroup(cls, grp.group_num)} disabled={isBusy}>
+                            {thisBusy ? '⏳…' : existing ? '↺ Nilai Ulang' : '🤖 Nilai'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {gradedStudents.length > 0 && (
+            <div className="gr-results-section">
+              <div className="gr-section-title">Rekap Nilai Mahasiswa</div>
+              <div className="ll-table-wrap">
+                <table className="um-table gr-grade-table">
+                  <thead>
+                    <tr><th>Nama</th><th>NPM</th><th>Kelas</th><th>Kelompok</th><th>Nilai</th><th>Detail</th></tr>
+                  </thead>
+                  <tbody>
+                    {gradedStudents.map(g => (
+                      <tr key={g.student_id}>
+                        <td>{g.name}</td>
+                        <td className="um-td-npm">{g.npm}</td>
+                        <td>{g.class}</td>
+                        <td style={{ textAlign: 'center' }}>{g.group_num ?? '—'}</td>
+                        <td style={{ textAlign: 'center' }}><span className="gr-grade-chip">{g.grade}</span></td>
+                        <td><button className="um-btn-sm" onClick={() => setGradeModal(g)}>📋 Lihat</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────
 export default function MindmapPage({ profile }) {
   const [domain, setDomain]           = useState('D2')
@@ -962,7 +1234,7 @@ export default function MindmapPage({ profile }) {
       </div>
 
       {/* Admin: student picker — only for sheet/map modes */}
-      {isAdmin && mode !== 'group' && (
+      {isAdmin && mode !== 'group' && mode !== 'grade' && (
         <div style={{ marginBottom: 16 }}>
           <select className="mm-student-select" value={selectedStudent} onChange={e => setSelected(e.target.value)}>
             <option value="">— Pilih mahasiswa —</option>
@@ -986,6 +1258,7 @@ export default function MindmapPage({ profile }) {
             <button className={`tab-btn${mode === 'group'  ? ' active' : ''}`} onClick={() => setMode('group')}>👥 Kelola Kelompok</button>
             <button className={`tab-btn${mode === 'map'    ? ' active' : ''}`} onClick={() => setMode('map')}>🗺️ Mind Map</button>
             <button className={`tab-btn${mode === 'sheet'  ? ' active' : ''}`} onClick={() => setMode('sheet')}>📋 Sheet</button>
+            <button className={`tab-btn${mode === 'grade'  ? ' active' : ''}`} onClick={() => setMode('grade')}>🎯 Penilaian AI</button>
           </>
         ) : (
           <>
@@ -1000,8 +1273,13 @@ export default function MindmapPage({ profile }) {
         <GroupManageTab key={domain} domain={domain} />
       )}
 
+      {/* ── AI grading (admin) ── */}
+      {isAdmin && mode === 'grade' && (
+        <GradeTab key={domain} domain={domain} />
+      )}
+
       {/* ── Sheet / map ── */}
-      {mode !== 'group' && (
+      {mode !== 'group' && mode !== 'grade' && (
         <>
           {!showContent ? (
             <div className="empty-state"><div className="icon">👤</div><p>Pilih mahasiswa untuk melihat mind map.</p></div>

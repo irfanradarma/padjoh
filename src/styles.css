@@ -1949,3 +1949,88 @@ body {
 .ll-td-ip   { font-size: 12px; color: var(--muted); font-family: monospace; white-space: nowrap; }
 .ll-td-ua   { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .um-badge-neutral { background: rgba(148,163,184,.15); color: var(--muted); }
+
+/* ── AI Grading (GradeTab) ───────────────────────────────────── */
+.gr-wrap { display: flex; flex-direction: column; gap: 20px; padding: 4px 0; }
+
+/* Rubric section */
+.gr-rubric-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.gr-rubric-toggle {
+  width: 100%; text-align: left; padding: 12px 16px;
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--text);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.gr-rubric-toggle:hover { background: var(--surface2); }
+.gr-rubric-body { padding: 0 16px 16px; }
+
+.gr-rubric-editor { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+.gr-rubric-total-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--muted); margin-bottom: 4px;
+}
+.gr-rubric-sub { font-size: 12px; }
+.gr-rubric-total { font-weight: 700; color: var(--accent); }
+.gr-rubric-total.gr-rubric-warn { color: var(--danger); }
+.gr-rubric-row { display: flex; flex-direction: column; gap: 6px; }
+.gr-rubric-top { display: flex; gap: 8px; align-items: center; }
+.gr-rubric-name { flex: 1; font-size: 13px; }
+.gr-rubric-score-wrap { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.gr-rubric-score { width: 60px; text-align: center; font-size: 13px; }
+.gr-rubric-pts { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.gr-rubric-desc { font-size: 12.5px; color: var(--muted); }
+
+/* Group section */
+.gr-group-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.gr-group-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.gr-section-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.gr-assess-all-btn { width: auto !important; padding: 7px 14px !important; font-size: 12.5px !important; }
+.gr-class-section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.gr-class-section:last-child { border-bottom: none; }
+.gr-class-header { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; letter-spacing: 0.05em; }
+.gr-group-list { display: flex; flex-direction: column; gap: 8px; }
+.gr-group-card {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px; gap: 12px;
+}
+.gr-group-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gr-group-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.gr-group-members { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gr-group-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.gr-grade-badge {
+  font-size: 18px; font-weight: 800; color: var(--accent);
+  min-width: 48px; text-align: right;
+}
+
+/* Results section */
+.gr-results-section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.gr-results-section .gr-section-title { padding: 12px 16px; border-bottom: 1px solid var(--border); display: block; background: var(--surface2); }
+.gr-grade-table { min-width: 540px; }
+.gr-grade-chip {
+  display: inline-block; font-size: 14px; font-weight: 800;
+  color: var(--accent); min-width: 32px; text-align: center;
+}
+
+/* Grade detail modal */
+.gr-modal { max-width: 580px !important; text-align: left !important; }
+.gr-score-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 12px; }
+.gr-score-table th, .gr-score-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.gr-score-table th { font-weight: 600; color: var(--muted); font-size: 12px; background: var(--surface2); }
+.gr-score-val { font-weight: 700; color: var(--accent); text-align: center !important; }
+.gr-score-max { color: var(--muted); font-size: 12px; text-align: center !important; }
+.gr-summary { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 0; }
+.gr-raw-explanation { font-size: 13px; color: var(--muted); white-space: pre-wrap; margin: 0; }
