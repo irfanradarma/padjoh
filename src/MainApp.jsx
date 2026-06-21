@@ -8,10 +8,11 @@ import ForumPage from './pages/ForumPage'
 import UserManagementPage from './pages/UserManagementPage'
 import LoginLogsPage from './pages/LoginLogsPage'
 import DeadlinePage from './pages/DeadlinePage'
+import QuizManagementPage from './pages/QuizManagementPage'
 import AppLogo from './components/AppLogo'
 
 // ── Hash routing ──────────────────────────────────────────────
-const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management', 'login-logs']
+const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management', 'login-logs', 'quiz-mgmt']
 
 function hashToPage(hash) {
   const h = (hash || '').replace(/^#\/?/, '')
@@ -40,6 +41,7 @@ const PAGE_LABELS = {
   deadline:           'Kelola Deadline',
   'user-management':  'Manajemen Pengguna',
   'login-logs':       'Log Login',
+  'quiz-mgmt':        'Manajemen Kuis',
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -366,6 +368,17 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
               <span className="nav-label">Log Login</span>
             </div>
           )}
+
+          {profile.is_admin && (
+            <div
+              className={`nav-item${page.type === 'quiz-mgmt' ? ' active' : ''}`}
+              title="Manajemen Kuis"
+              onClick={() => navigate({ type: 'quiz-mgmt' })}
+            >
+              <span className="nav-icon">🎯</span>
+              <span className="nav-label">Manajemen Kuis</span>
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -458,6 +471,11 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         {visited.has('login-logs') && profile.is_admin && (
           <div style={{ display: page.type === 'login-logs' ? '' : 'none' }}>
             <LoginLogsPage />
+          </div>
+        )}
+        {visited.has('quiz-mgmt') && profile.is_admin && (
+          <div style={{ display: page.type === 'quiz-mgmt' ? '' : 'none' }}>
+            <QuizManagementPage />
           </div>
         )}
       </main>

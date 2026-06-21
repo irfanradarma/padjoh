@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../supabaseClient'
+import QuizView from './QuizView'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -372,13 +373,183 @@ function AdminExerciseView({ sectionId, selectedStudentId, students }) {
   )
 }
 
+// ── Admin: quiz section ───────────────────────────────────────
+function AdminQuizSection({ sectionId, students, onOpenSession }) {
+  const [deployments, setDeployments] = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [openingFor, setOpeningFor]   = useState(null)  // 'deployId/class'
+
+  useEffect(() => {
+    supabase.rpc('get_section_quiz_deployments', { p_section_id: sectionId })
+      .then(({ data }) => { setDeployments(data ?? []); setLoading(false) })
+  }, [sectionId])
+
+  async function openCheckin(deploymentId, cls) {
+    const key = `${deploymentId}/${cls}`
+    setOpeningFor(key)
+    const { data: sessionId, error } = await supabase.rpc('admin_open_checkin', {
+      p_deployment_id: deploymentId, p_class: cls,
+    })
+    setOpeningFor(null)
+    if (error) { alert(error.message); return }
+    // Refresh deployment list then open
+    const { data } = await supabase.rpc('get_section_quiz_deployments', { p_section_id: sectionId })
+    setDeployments(data ?? [])
+    const dep = (data ?? []).find(d => d.deployment_id === deploymentId)
+    onOpenSession(sessionId, dep?.title ?? '', false, deploymentId)
+  }
+
+  const classes = [...new Set((students ?? []).map(s => s.class).filter(Boolean))].sort()
+
+  if (loading) return null
+  if (deployments.length === 0) return null
+
+  return (
+    <div className="quiz-section">
+      <div className="quiz-section-title">🎯 Kuis</div>
+      {deployments.map(dep => (
+        <div key={dep.deployment_id} className="quiz-deploy-card">
+          <div className="quiz-deploy-header">
+            <span className="quiz-deploy-title">{dep.title}</span>
+            <span className="quiz-deploy-meta">{Math.round(dep.time_limit / 60)} mnt{dep.tournament ? ' · 🏆 Turnamen' : ''}</span>
+          </div>
+          <div className="quiz-class-rows">
+            {classes.map(cls => {
+              const session = (dep.sessions ?? []).find(s => s.class === cls)
+              const key = `${dep.deployment_id}/${cls}`
+              return (
+                <div key={cls} className="quiz-class-row">
+                  <span className="quiz-class-name">Kelas {cls}</span>
+                  {session && (
+                    <span className={`quiz-status-badge qsb-${session.status}`}>
+                      {session.status === 'checkin' ? 'Check-in' : session.status === 'active' ? '🔴 Berlangsung' : '✅ Selesai'}
+                    </span>
+                  )}
+                  {session && session.status === 'checkin' && (
+                    <span className="quiz-checkin-count">{session.checkin_count} check-in</span>
+                  )}
+                  {session ? (
+                    <button
+                      className="btn-sm btn-primary"
+                      onClick={() => onOpenSession(session.session_id, dep.title, false, dep.deployment_id)}
+                    >Kelola</button>
+                  ) : (
+                    <button
+                      className="btn-sm"
+                      onClick={() => openCheckin(dep.deployment_id, cls)}
+                      disabled={openingFor === key}
+                    >{openingFor === key ? '…' : 'Buka Check-in'}</button>
+                  )}
+                </div>
+              )
+            })}
+            {classes.length === 0 && (
+              <div className="quiz-no-class">Belum ada mahasiswa di sesi ini.</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Student: quiz section ─────────────────────────────────────
+function StudentQuizSection({ sectionId, onOpenSession }) {
+  const [quizzes, setQuizzes] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase.rpc('get_section_quizzes', { p_section_id: sectionId })
+      .then(({ data }) => { setQuizzes(data ?? []); setLoading(false) })
+  }, [sectionId])
+
+  if (loading) return null
+  if (quizzes.length === 0) return null
+
+  return (
+    <div className="quiz-section">
+      <div className="quiz-section-title">🎯 Kuis</div>
+      {quizzes.map(q => (
+        <div key={q.deployment_id} className="quiz-student-card">
+          <div className="quiz-student-info">
+            <div className="quiz-student-title">{q.title}</div>
+            <div className="quiz-student-meta">
+              {Math.round(q.time_limit / 60)} menit
+              {q.tournament ? ' · 🏆 Turnamen' : ''}
+              {q.my_result && ` · Skor: ${Number(q.my_result.total).toFixed(1)} (#${q.my_result.rank})`}
+            </div>
+          </div>
+          <div className="quiz-student-right">
+            {q.status === 'not_open' && (
+              <span className="quiz-status-badge qsb-not_open">Belum dibuka</span>
+            )}
+            {q.status === 'checkin' && !q.is_checked_in && (
+              <button
+                className="btn-sm btn-primary"
+                onClick={() => onOpenSession(q.session_id, q.title, q.has_password, q.deployment_id, {
+                  initialStatus: 'checkin', initialCheckedIn: false,
+                  timeLimitSec: q.time_limit, isTournament: q.tournament,
+                })}
+              >Masuk Kuis</button>
+            )}
+            {q.status === 'checkin' && q.is_checked_in && (
+              <span className="quiz-status-badge qsb-checkin">Menunggu mulai…</span>
+            )}
+            {q.status === 'active' && (
+              <button
+                className="btn-sm btn-primary"
+                onClick={() => onOpenSession(q.session_id, q.title, false, q.deployment_id, {
+                  initialStatus: 'active', initialCheckedIn: true,
+                  startedAt: q.started_at, timeLimitSec: q.time_limit, isTournament: q.tournament,
+                })}
+              >▶ Lanjutkan</button>
+            )}
+            {q.status === 'finished' && (
+              <button
+                className="btn-sm"
+                onClick={() => onOpenSession(q.session_id, q.title, false, q.deployment_id, {
+                  initialStatus: 'finished', initialCheckedIn: true,
+                  timeLimitSec: q.time_limit, isTournament: q.tournament,
+                })}
+              >Lihat Hasil</button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Export ──────────────────────────────────────────────────
 export default function ExerciseTab({ sectionId, userId, profile, selectedStudentId, students }) {
   const isSection2 = sectionId === 2
+  const [quizView, setQuizView] = useState(null)
+
+  if (quizView) {
+    return (
+      <QuizView
+        sessionId={quizView.sessionId}
+        quizTitle={quizView.quizTitle}
+        hasPassword={quizView.hasPassword}
+        profile={profile}
+        initialStatus={quizView.initialStatus}
+        initialCheckedIn={quizView.initialCheckedIn}
+        startedAt={quizView.startedAt}
+        timeLimitSec={quizView.timeLimitSec}
+        isTournament={quizView.isTournament}
+        onBack={() => setQuizView(null)}
+      />
+    )
+  }
+
+  function openSession(sessionId, quizTitle, hasPassword, deploymentId, extra = {}) {
+    setQuizView({ sessionId, quizTitle, hasPassword, deploymentId, ...extra })
+  }
 
   if (profile.is_admin) {
     return (
       <div>
+        <AdminQuizSection sectionId={sectionId} students={students} onOpenSession={openSession} />
         {isSection2 && (
           <AdminSheetExercise students={students} selectedStudentId={selectedStudentId} />
         )}
@@ -391,6 +562,7 @@ export default function ExerciseTab({ sectionId, userId, profile, selectedStuden
 
   return (
     <div>
+      <StudentQuizSection sectionId={sectionId} onOpenSession={openSession} />
       {isSection2 && <StudentSheetExercise profile={profile} />}
       <StudentExerciseView sectionId={sectionId} userId={userId} />
     </div>
