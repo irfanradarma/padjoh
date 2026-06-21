@@ -7,7 +7,8 @@
 --    can deliver postgres_changes events to them.
 --    Without a SELECT policy, RLS blocks the realtime event even though
 --    the table is in the publication.
-create policy if not exists "read_own_quiz_session" on public.quiz_sessions
+drop policy if exists "read_own_quiz_session" on public.quiz_sessions;
+create policy "read_own_quiz_session" on public.quiz_sessions
   for select to authenticated
   using (
     -- admins see all
