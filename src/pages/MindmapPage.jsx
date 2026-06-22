@@ -440,17 +440,23 @@ function trimGrid(grid) {
   return grid.slice(0, last + 1)
 }
 
+const SS_DEFAULT_WIDTHS = [150, 150, 130, 120, 100, 200]
+
 function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
-  const [grid, setGrid]       = useState(() => padGrid(initialRows))
-  const [dirty, setDirty]     = useState(false)
-  const [anchor, setAnchor]   = useState({ r: 0, c: 0 })
-  const [focus, setFocus]     = useState({ r: 0, c: 0 })
-  const [editing, setEditing] = useState(false)
-  const [addN, setAddN]       = useState(100)
+  const [grid, setGrid]         = useState(() => padGrid(initialRows))
+  const [dirty, setDirty]       = useState(false)
+  const [anchor, setAnchor]     = useState({ r: 0, c: 0 })
+  const [focus, setFocus]       = useState({ r: 0, c: 0 })
+  const [editing, setEditing]   = useState(false)
+  const [addN, setAddN]         = useState(100)
+  const [colWidths, setColWidths] = useState(SS_DEFAULT_WIDTHS)
+  const [isSheetFs, setSheetFs] = useState(false)
 
   const tabbing      = useRef(false)  // suppress blur during Tab/Enter cell navigation
   const dragging     = useRef(false)
+  const colResizing  = useRef(null)   // { col, startX, startW }
   const containerRef = useRef()
+  const sheetOuterRef = useRef()
   const inputRefs    = useRef({})     // `${r}_${c}` → <input>
   const fileRef      = useRef()
   const prevRows     = useRef(initialRows)
@@ -475,6 +481,27 @@ function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
       tabbing.current = false
     }
   }, [editing, anchor.r, anchor.c])
+
+  // Column resize mouse handlers
+  useEffect(() => {
+    function onMove(e) {
+      if (!colResizing.current) return
+      const { col, startX, startW } = colResizing.current
+      const newW = Math.max(60, startW + e.clientX - startX)
+      setColWidths(prev => prev.map((w, i) => i === col ? newW : w))
+    }
+    function onUp() { colResizing.current = null }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [])
+
+  // Fullscreen change listener for the sheet
+  useEffect(() => {
+    const handler = () => setSheetFs(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
 
   const sel = {
     r1: Math.min(anchor.r, focus.r), c1: Math.min(anchor.c, focus.c),
@@ -644,10 +671,29 @@ function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
 
   function doSave() { onSave(trimGrid(grid)) }
 
+  function handleDownload() {
+    const data = trimGrid(grid)
+    const aoa  = [SS_HEADERS, ...data.map(r => SS_COLS.map(c => r[c] || ''))]
+    const wb   = XLSX.utils.book_new()
+    const ws   = XLSX.utils.aoa_to_sheet(aoa)
+    ws['!cols'] = colWidths.map(w => ({ wch: Math.round(w / 7) }))
+    XLSX.utils.book_append_sheet(wb, ws, 'Mind Map')
+    XLSX.writeFile(wb, `mindmap_${domain ?? 'sheet'}.xlsx`)
+  }
+
+  function toggleSheetFullscreen() {
+    if (!document.fullscreenElement) sheetOuterRef.current?.requestFullscreen()
+    else document.exitFullscreen()
+  }
+
   return (
     <div
+      ref={sheetOuterRef}
+      className={`ss-outer${isSheetFs ? ' ss-fullscreen' : ''}`}
+    >
+    <div
       ref={containerRef}
-      className="ss-outer"
+      className="ss-inner"
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onMouseUp={() => { dragging.current = false }}
@@ -660,8 +706,21 @@ function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
           <button className="btn-sm" onClick={() => fileRef.current.click()}>📂 Import XLSX</button>
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleImport} />
           <div style={{ flex: 1 }} />
+          <button className="btn-sm" onClick={handleDownload} title="Unduh sheet sebagai XLSX">📥 Unduh XLSX</button>
+          <button className="btn-sm ss-fs-btn" onClick={toggleSheetFullscreen} title={isSheetFs ? 'Keluar fullscreen' : 'Fullscreen'}>
+            {isSheetFs ? '⊡' : '⊞'}
+          </button>
           <button className={`btn-sm${dirty ? ' btn-sm-primary' : ''}`} onClick={doSave} disabled={saving || !dirty}>
             {saving ? 'Menyimpan…' : dirty ? '💾 Simpan' : '✓ Tersimpan'}
+          </button>
+        </div>
+      )}
+      {readOnly && (
+        <div className="ss-toolbar">
+          <div style={{ flex: 1 }} />
+          <button className="btn-sm" onClick={handleDownload} title="Unduh sheet sebagai XLSX">📥 Unduh XLSX</button>
+          <button className="btn-sm ss-fs-btn" onClick={toggleSheetFullscreen} title={isSheetFs ? 'Keluar fullscreen' : 'Fullscreen'}>
+            {isSheetFs ? '⊡' : '⊞'}
           </button>
         </div>
       )}
@@ -670,13 +729,22 @@ function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
         <table className="ss-table" onMouseLeave={() => { dragging.current = false }}>
           <colgroup>
             <col style={{ width: 44 }} />
-            {SS_WIDTHS.map((w, i) => <col key={i} style={{ width: w }} />)}
+            {colWidths.map((w, i) => <col key={i} style={{ width: w }} />)}
           </colgroup>
           <thead>
             <tr>
               <th className="ss-th-corner" />
               {SS_HEADERS.map((h, c) => (
-                <th key={c} className={`ss-th${c >= sel.c1 && c <= sel.c2 ? ' ss-th-sel' : ''}`}>{h}</th>
+                <th key={c} className={`ss-th${c >= sel.c1 && c <= sel.c2 ? ' ss-th-sel' : ''}`}>
+                  <span className="ss-th-label">{h}</span>
+                  <span
+                    className="ss-col-resize-handle"
+                    onMouseDown={e => {
+                      e.stopPropagation()
+                      colResizing.current = { col: c, startX: e.clientX, startW: colWidths[c] }
+                    }}
+                  />
+                </th>
               ))}
             </tr>
           </thead>
@@ -746,6 +814,7 @@ function SheetView({ initialRows, onSave, saving, readOnly, domain }) {
           </button>
         )}
       </div>
+    </div>
     </div>
   )
 }

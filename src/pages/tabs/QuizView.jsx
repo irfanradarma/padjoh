@@ -367,30 +367,36 @@ function StudentQuizView({ sessionId, questions, startedAt, timeLimitSec }) {
 }
 
 // ── Student: recap ────────────────────────────────────────────
-function StudentRecap({ resultData, isTournament }) {
+function StudentRecap({ resultData, isTournament, sessionId }) {
   const { my_result, results = [], correct_options } = resultData ?? {}
+  const [reviewData, setReviewData] = useState(null)
+  const [reviewOpen, setReviewOpen] = useState(false)
+
+  useEffect(() => {
+    if (!sessionId) return
+    supabase.rpc('get_my_answer_review', { p_session_id: sessionId })
+      .then(({ data }) => setReviewData(data ?? []))
+  }, [sessionId])
+
   const pairs = isTournament ? computePairs(results) : []
   const myPairGroup = my_result
     ? pairs.find(g => g.some(m => m.rank === my_result.rank))
     : null
 
-  // Calculate mean and median score of the class
   const totalScores = results
     .map(r => r.total !== undefined && r.total !== null ? Number(r.total) : null)
     .filter(val => val !== null && !isNaN(val))
   const count = totalScores.length
   const mean = count > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / count : 0
-
   const sortedScores = [...totalScores].sort((a, b) => a - b)
   let median = 0
   if (count > 0) {
     const mid = Math.floor(count / 2)
-    if (count % 2 !== 0) {
-      median = sortedScores[mid]
-    } else {
-      median = (sortedScores[mid - 1] + sortedScores[mid]) / 2
-    }
+    median = count % 2 !== 0 ? sortedScores[mid] : (sortedScores[mid - 1] + sortedScores[mid]) / 2
   }
+
+  const correctCount = (reviewData ?? []).filter(q => q.is_correct).length
+  const totalQ       = (reviewData ?? []).length
 
   return (
     <div className="qv-recap">
@@ -426,6 +432,7 @@ function StudentRecap({ resultData, isTournament }) {
       ) : (
         <p className="qv-recap-no-result">Skor belum tersedia.</p>
       )}
+
       {isTournament && myPairGroup && (
         <div className="qv-recap-pair-section">
           <h3 className="qv-recap-pair-title">Pasangan Anda Selanjutnya</h3>
@@ -444,8 +451,61 @@ function StudentRecap({ resultData, isTournament }) {
           </div>
         </div>
       )}
+
       {correct_options && (
         <div className="qv-reveal-note">✅ Kunci jawaban telah dirilis.</div>
+      )}
+
+      {/* Answer review */}
+      {reviewData && reviewData.length > 0 && (
+        <div className="qv-review-section">
+          <button className="qv-review-toggle" onClick={() => setReviewOpen(x => !x)}>
+            <span>📋 Tinjauan Jawaban</span>
+            <span className={`qv-review-score${correctCount === totalQ ? ' perfect' : correctCount > totalQ / 2 ? ' good' : ' low'}`}>
+              {correctCount}/{totalQ} benar
+            </span>
+            <span className="qv-review-chevron">{reviewOpen ? '▲' : '▼'}</span>
+          </button>
+          {reviewOpen && (
+            <div className="qv-review-list">
+              {reviewData.map((q, qi) => {
+                const answered = !!q.my_option_id
+                const status   = !answered ? 'unanswered' : q.is_correct ? 'correct' : 'wrong'
+                return (
+                  <div key={q.question_id} className={`qv-review-card ${status}`}>
+                    <div className="qv-review-q-header">
+                      <span className="qv-review-status-icon">
+                        {status === 'correct' ? '✅' : status === 'wrong' ? '❌' : '—'}
+                      </span>
+                      <span className="qv-review-q-num">Soal {qi + 1}</span>
+                    </div>
+                    {q.question_text && <div className="qv-review-q-text">{q.question_text}</div>}
+                    {q.question_type === 'image' && q.question_url && (
+                      <img src={q.question_url} alt="soal" className="qv-q-img" />
+                    )}
+                    <div className="qv-review-options">
+                      {(q.options ?? []).map((opt, oi) => {
+                        const isMyAnswer = opt.id === q.my_option_id
+                        const isKey      = opt.is_correct
+                        return (
+                          <div key={opt.id} className={`qv-review-option${isMyAnswer ? ' my-answer' : ''}${isKey ? ' key-answer' : ''}`}>
+                            <span className="qv-opt-lbl">{String.fromCharCode(65 + oi)}.</span>
+                            <span className="qv-review-opt-text">{opt.option_text}</span>
+                            <span className="qv-review-tags">
+                              {isMyAnswer && <span className="qv-review-tag my">Jawaban Anda</span>}
+                              {isKey && <span className="qv-review-tag key">Kunci</span>}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {!answered && <div className="qv-review-unanswered">Tidak dijawab</div>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -610,7 +670,7 @@ export default function QuizView({
           )}
           {/* Finished */}
           {(status === 'finished' || resultData) && (
-            <StudentRecap resultData={resultData} isTournament={isTournament} />
+            <StudentRecap resultData={resultData} isTournament={isTournament} sessionId={sessionId} />
           )}
         </>
       )}

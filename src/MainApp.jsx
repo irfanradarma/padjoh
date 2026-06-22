@@ -123,6 +123,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   const [manualPwOpen, setManualPwOpen] = useState(false)
   const [sidebarCollapsed, setCollapsed] = useState(false)  // desktop icon-only
   const [sidebarOpen, setSidebarOpen]    = useState(false)  // mobile drawer
+  const [notifications, setNotifications] = useState([])    // unread for current user
 
   const initialSection = initialPage.type === 'class' ? SECTIONS.find(s => s.id === initialPage.sectionId) : null
   const [preOpen, setPreOpen]   = useState(initialSection?.group === 'pre')
@@ -153,6 +154,8 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   function navigate(newPage) {
     setVisited(prev => new Set([...prev, newPage.type]))
     if (newPage.type === 'class' && newPage.sectionId) setLastSection(newPage.sectionId)
+    if (newPage.type === 'forum') markReadByType('forum')
+    if (newPage.type === 'class') markReadByType('quiz')
     const hash = pageToHash(newPage)
     if (window.location.hash !== hash) window.location.hash = hash
     else setPage(newPage)
@@ -163,6 +166,41 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
     if (!profile.is_admin) return
     supabase.rpc('get_students').then(({ data }) => setAllStudents(data ?? []))
   }, [profile.is_admin])
+
+  // Notifications: only for real non-admin users (not in masquerade)
+  useEffect(() => {
+    if (profile.is_admin) return
+    supabase.rpc('get_my_notifications').then(({ data }) => setNotifications(data ?? []))
+    const ch = supabase
+      .channel('my-notifications')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
+        payload => {
+          const n = payload.new
+          if (n) setNotifications(prev => [{ id: n.id, type: n.type, title: n.title, ref_id: n.ref_id, created_at: n.created_at }, ...prev])
+        }
+      )
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [profile.is_admin, profile.id])
+
+  function markReadByType(type) {
+    if (profile.is_admin) return
+    const hasUnread = notifications.some(n => n.type === type)
+    if (!hasUnread) return
+    setNotifications(prev => prev.filter(n => n.type !== type))
+    supabase.rpc('mark_all_notifications_read', { p_type: type })
+  }
+
+  function markAllRead() {
+    if (profile.is_admin) return
+    setNotifications([])
+    supabase.rpc('mark_all_notifications_read', { p_type: null })
+  }
+
+  const quizNotifCount  = notifications.filter(n => n.type === 'quiz').length
+  const forumNotifCount = notifications.filter(n => n.type === 'forum').length
+  const totalNotifCount = notifications.length
 
   const viewProfile = masqAs ? { ...masqAs, is_admin: false } : profile
 
@@ -263,6 +301,14 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         )}
 
         <nav className="sidebar-nav">
+          {!profile.is_admin && totalNotifCount > 0 && (
+            <div className="nav-item notif-bell-row" title="Notifikasi" onClick={markAllRead}>
+              <span className="nav-icon">🔔</span>
+              <span className="nav-label">Notifikasi</span>
+              <span className="notif-count-badge">{totalNotifCount}</span>
+            </div>
+          )}
+
           <div
             className={`nav-item${page.type === 'dashboard' ? ' active' : ''}`}
             title="Dashboard"
@@ -275,6 +321,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
           <div className={`nav-item${preOpen && !sidebarCollapsed ? ' open' : ''}`} title="Pre-UTS" onClick={togglePre}>
             <span className="nav-icon">📚</span>
             <span className="nav-label">Pre-UTS</span>
+            {!profile.is_admin && quizNotifCount > 0 && <span className="nav-notif-dot" />}
             <span className="nav-chevron">›</span>
           </div>
           {preOpen && !sidebarCollapsed && (
@@ -298,6 +345,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
           <div className={`nav-item${postOpen && !sidebarCollapsed ? ' open' : ''}`} title="Post-UTS" onClick={togglePost}>
             <span className="nav-icon">📖</span>
             <span className="nav-label">Post-UTS</span>
+            {!profile.is_admin && quizNotifCount > 0 && <span className="nav-notif-dot" />}
             <span className="nav-chevron">›</span>
           </div>
           {postOpen && !sidebarCollapsed && (
@@ -345,6 +393,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
           >
             <span className="nav-icon">💬</span>
             <span className="nav-label">Forum</span>
+            {!profile.is_admin && forumNotifCount > 0 && <span className="nav-notif-dot" />}
           </div>
 
           {profile.is_admin && (
@@ -411,6 +460,11 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             <AppLogo size={22} className="mobile-header-icon" />
             <span className="mobile-header-title">{pageLabel}</span>
           </div>
+          {!profile.is_admin && totalNotifCount > 0 && (
+            <button className="mobile-notif-btn" onClick={markAllRead} aria-label="Notifikasi">
+              🔔<span className="mobile-notif-badge">{totalNotifCount}</span>
+            </button>
+          )}
           <button className="mobile-theme-btn" onClick={toggleTheme} aria-label="Ganti tema">
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
