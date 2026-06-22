@@ -374,6 +374,24 @@ function StudentRecap({ resultData, isTournament }) {
     ? pairs.find(g => g.some(m => m.rank === my_result.rank))
     : null
 
+  // Calculate mean and median score of the class
+  const totalScores = results
+    .map(r => r.total !== undefined && r.total !== null ? Number(r.total) : null)
+    .filter(val => val !== null && !isNaN(val))
+  const count = totalScores.length
+  const mean = count > 0 ? totalScores.reduce((sum, score) => sum + score, 0) / count : 0
+
+  const sortedScores = [...totalScores].sort((a, b) => a - b)
+  let median = 0
+  if (count > 0) {
+    const mid = Math.floor(count / 2)
+    if (count % 2 !== 0) {
+      median = sortedScores[mid]
+    } else {
+      median = (sortedScores[mid - 1] + sortedScores[mid]) / 2
+    }
+  }
+
   return (
     <div className="qv-recap">
       <div className="qv-recap-icon">🎉</div>
@@ -396,6 +414,14 @@ function StudentRecap({ resultData, isTournament }) {
             <div className="qv-recap-score-val">{Number(my_result.speed).toFixed(1)}%</div>
             <div className="qv-recap-score-lbl">Kecepatan</div>
           </div>
+          <div className="qv-recap-score-card">
+            <div className="qv-recap-score-val">{mean.toFixed(1)}</div>
+            <div className="qv-recap-score-lbl">Rata-rata Kelas</div>
+          </div>
+          <div className="qv-recap-score-card">
+            <div className="qv-recap-score-val">{median.toFixed(1)}</div>
+            <div className="qv-recap-score-lbl">Median Kelas</div>
+          </div>
         </div>
       ) : (
         <p className="qv-recap-no-result">Skor belum tersedia.</p>
@@ -404,14 +430,17 @@ function StudentRecap({ resultData, isTournament }) {
         <div className="qv-recap-pair-section">
           <h3 className="qv-recap-pair-title">Pasangan Anda Selanjutnya</h3>
           <div className="qv-recap-pair-group">
-            {myPairGroup.map(m => (
-              <div key={m.user_id} className={`qv-recap-pair-member${m.rank === my_result?.rank ? ' me' : ''}`}>
-                <span className="qv-pair-rank">#{m.rank}</span>
-                <span>{m.name}</span>
-                <span className="qv-pair-score">{Number(m.total).toFixed(1)}</span>
-                {m.rank === my_result?.rank && <span className="qv-me-badge">Anda</span>}
-              </div>
-            ))}
+            {myPairGroup.map(m => {
+              const isMe = m.rank === my_result?.rank
+              return (
+                <div key={m.user_id} className={`qv-recap-pair-member${isMe ? ' me' : ''}`}>
+                  {isMe && <span className="qv-pair-rank">#{m.rank}</span>}
+                  <span>{m.name}</span>
+                  {isMe && <span className="qv-pair-score">{Number(m.total).toFixed(1)}</span>}
+                  {isMe && <span className="qv-me-badge">Anda</span>}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
