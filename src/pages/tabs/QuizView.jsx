@@ -530,14 +530,15 @@ export default function QuizView({
     return () => supabase.removeChannel(channel)
   }, [sessionId])
 
-  // Polling fallback: realtime may be blocked by RLS until the policy patch is applied.
-  // Poll every 3 s while student is in the lobby (checked-in, status still 'checkin').
+  // Polling fallback: covers both lobby→questions and questions→results transitions.
+  // Realtime may be blocked by RLS; polling ensures auto-transition regardless.
   useEffect(() => {
-    if (isAdmin || !isCheckedIn || status !== 'checkin' || !sessionId) return
+    if (isAdmin || !isCheckedIn || !sessionId) return
+    if (status !== 'checkin' && status !== 'active') return
     const id = setInterval(async () => {
       const { data } = await supabase.rpc('get_quiz_session_info', { p_session_id: sessionId })
       if (!data) return
-      if (data.status === 'active') {
+      if (data.status === 'active' && status === 'checkin') {
         setStatus('active')
         if (data.started_at) setStartedAt(data.started_at)
         loadQuestions()
