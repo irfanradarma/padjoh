@@ -40,7 +40,8 @@ function StarsRemaining({ count }) {
 }
 
 // ── Sandboxed iframe prototype frame ─────────────────────────
-function PrototypeFrame({ htmlUrl, title }) {
+// fsContainerRef: when provided, fullscreen targets that element instead of this frame
+function PrototypeFrame({ htmlUrl, title, fsContainerRef }) {
   const [srcdoc, setSrcdoc]     = useState(null)
   const [loading, setLoading]   = useState(false)
   const [fetchKey, setFetchKey] = useState(0)
@@ -64,12 +65,19 @@ function PrototypeFrame({ htmlUrl, title }) {
   }, [])
 
   function toggleFs() {
-    if (!document.fullscreenElement) wrapRef.current?.requestFullscreen()
-    else document.exitFullscreen()
+    if (!document.fullscreenElement) {
+      const target = fsContainerRef?.current ?? wrapRef.current
+      target?.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
   }
 
+  // When no external container, wrap uses its own fullscreen class
+  const useOwnFs = !fsContainerRef
+
   return (
-    <div ref={wrapRef} className={`vb-frame-wrap${fullscreen ? ' vb-frame-fs' : ''}`}>
+    <div ref={wrapRef} className={`vb-frame-wrap${useOwnFs && fullscreen ? ' vb-frame-fs' : ''}`}>
       <div className="vb-frame-toolbar">
         <span className="vb-frame-title">{title}</span>
         {loading && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Memuat…</span>}
@@ -501,11 +509,12 @@ function SubmissionPanel({ iterationId, submissionOpen, mySubmission, onRefresh 
 
 // ── Gallery: two-panel ─────────────────────────────────────────
 function GalleryPanel({ iterationId, votingOpen, votingEnd, myVotes: initVotes, myVotesCount: initCount }) {
-  const [subs, setSubs]         = useState(null)
+  const [subs, setSubs]           = useState(null)
   const [selectedId, setSelected] = useState(null)
-  const [myVotes, setMyVotes]   = useState(new Set(initVotes ?? []))
+  const [myVotes, setMyVotes]     = useState(new Set(initVotes ?? []))
   const [voteCount, setVoteCount] = useState(initCount ?? 0)
-  const [voting, setVoting]     = useState(false)
+  const [voting, setVoting]       = useState(false)
+  const galleryRef                = useRef()
 
   const countdown = useCountdown(votingEnd)
   const votingExpired = countdown !== null && countdown <= 0
@@ -565,7 +574,7 @@ function GalleryPanel({ iterationId, votingOpen, votingEnd, myVotes: initVotes, 
   const selected = subs.find(s => s.submission_id === selectedId)
 
   return (
-    <div className="vb-gallery-wrap">
+    <div className="vb-gallery-wrap" ref={galleryRef}>
       {/* Voting status bar */}
       {(votingOpen || votingExpired) && (
         <div className={`vb-voting-bar${votingExpired ? ' expired' : ''}`}>
@@ -586,22 +595,25 @@ function GalleryPanel({ iterationId, votingOpen, votingEnd, myVotes: initVotes, 
         {/* Left panel: student list */}
         <div className="vb-gallery-left">
           <div className="vb-gallery-left-header">Peserta</div>
-          {subs.map(s => (
-            <div
-              key={s.submission_id}
-              className={`vb-student-item${s.submission_id === selectedId ? ' selected' : ''}${s.is_me ? ' me' : ''}`}
-              onClick={() => setSelected(s.submission_id)}
-            >
-              <span className="vb-student-name">{s.student_name}</span>
-              <span className="vb-student-right">
-                {s.is_me && <span className="vb-you-tag">Anda</span>}
-                {myVotes.has(s.submission_id)
-                  ? <span className="vb-voted-star">★</span>
-                  : <span className="vb-unvoted-dot">●</span>
-                }
-              </span>
-            </div>
-          ))}
+          {subs.map(s => {
+            const voted = myVotes.has(s.submission_id)
+            return (
+              <div
+                key={s.submission_id}
+                className={`vb-student-item${s.submission_id === selectedId ? ' selected' : ''}${s.is_me ? ' me' : ''}${voted ? ' voted' : ''}`}
+                onClick={() => setSelected(s.submission_id)}
+              >
+                <span className="vb-student-name">{s.student_name}</span>
+                <span className="vb-student-right">
+                  {s.is_me && <span className="vb-you-tag">Anda</span>}
+                  {voted
+                    ? <span className="vb-voted-star">★</span>
+                    : <span className="vb-unvoted-dot">●</span>
+                  }
+                </span>
+              </div>
+            )
+          })}
         </div>
 
         {/* Right panel: project display */}
@@ -627,7 +639,11 @@ function GalleryPanel({ iterationId, votingOpen, votingEnd, myVotes: initVotes, 
                 )}
                 {selected.is_me && <span className="vb-own-tag">Karya Anda</span>}
               </div>
-              <PrototypeFrame htmlUrl={selected.html_url} title={selected.project_title} />
+              <PrototypeFrame
+                htmlUrl={selected.html_url}
+                title={selected.project_title}
+                fsContainerRef={galleryRef}
+              />
             </>
           ) : (
             <div className="empty-state"><p>Pilih peserta di sebelah kiri.</p></div>
