@@ -9,10 +9,11 @@ import UserManagementPage from './pages/UserManagementPage'
 import LoginLogsPage from './pages/LoginLogsPage'
 import DeadlinePage from './pages/DeadlinePage'
 import QuizManagementPage from './pages/QuizManagementPage'
+import VibersPage from './pages/VibersPage'
 import AppLogo from './components/AppLogo'
 
 // ── Hash routing ──────────────────────────────────────────────
-const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management', 'login-logs', 'quiz-mgmt']
+const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management', 'login-logs', 'quiz-mgmt', 'vibers']
 
 function hashToPage(hash) {
   const h = (hash || '').replace(/^#\/?/, '')
@@ -42,6 +43,7 @@ const PAGE_LABELS = {
   'user-management':  'Manajemen Pengguna',
   'login-logs':       'Log Login',
   'quiz-mgmt':        'Manajemen Kuis',
+  'vibers':           'Vibers',
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -154,8 +156,9 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   function navigate(newPage) {
     setVisited(prev => new Set([...prev, newPage.type]))
     if (newPage.type === 'class' && newPage.sectionId) setLastSection(newPage.sectionId)
-    if (newPage.type === 'forum') markReadByType('forum')
-    if (newPage.type === 'class') markReadByType('quiz')
+    if (newPage.type === 'forum')  markReadByType('forum')
+    if (newPage.type === 'class')  markReadByType('quiz')
+    if (newPage.type === 'vibers') markReadByType('vibers')
     const hash = pageToHash(newPage)
     if (window.location.hash !== hash) window.location.hash = hash
     else setPage(newPage)
@@ -198,9 +201,10 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
     supabase.rpc('mark_all_notifications_read', { p_type: null })
   }
 
-  const quizNotifCount  = notifications.filter(n => n.type === 'quiz').length
-  const forumNotifCount = notifications.filter(n => n.type === 'forum').length
-  const totalNotifCount = notifications.length
+  const quizNotifCount   = notifications.filter(n => n.type === 'quiz').length
+  const forumNotifCount  = notifications.filter(n => n.type === 'forum').length
+  const vibersNotifCount = notifications.filter(n => n.type === 'vibers').length
+  const totalNotifCount  = notifications.length
 
   const viewProfile = masqAs ? { ...masqAs, is_admin: false } : profile
 
@@ -396,6 +400,16 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             {!profile.is_admin && forumNotifCount > 0 && <span className="nav-notif-dot" />}
           </div>
 
+          <div
+            className={`nav-item${page.type === 'vibers' ? ' active' : ''}`}
+            title="Vibers"
+            onClick={() => navigate({ type: 'vibers' })}
+          >
+            <span className="nav-icon">🚀</span>
+            <span className="nav-label">Vibers</span>
+            {!profile.is_admin && vibersNotifCount > 0 && <span className="nav-notif-dot" />}
+          </div>
+
           {profile.is_admin && (
             <div
               className={`nav-item${page.type === 'user-management' ? ' active' : ''}`}
@@ -530,6 +544,11 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         {visited.has('quiz-mgmt') && profile.is_admin && (
           <div style={{ display: page.type === 'quiz-mgmt' ? '' : 'none' }}>
             <QuizManagementPage />
+          </div>
+        )}
+        {visited.has('vibers') && (
+          <div style={{ display: page.type === 'vibers' ? '' : 'none' }}>
+            <VibersPage key={masqAs?.id ?? 'self'} profile={viewProfile} />
           </div>
         )}
       </main>
