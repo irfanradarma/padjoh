@@ -41,9 +41,21 @@ function StarsRemaining({ count }) {
 
 // ── Sandboxed iframe prototype frame ─────────────────────────
 function PrototypeFrame({ htmlUrl, title }) {
-  const [key, setKey]           = useState(0)
+  const [srcdoc, setSrcdoc]     = useState(null)
+  const [loading, setLoading]   = useState(false)
+  const [fetchKey, setFetchKey] = useState(0)
   const [fullscreen, setFs]     = useState(false)
   const wrapRef                 = useRef()
+
+  // Fetch HTML as text → use srcdoc to bypass storage content-type/disposition headers
+  useEffect(() => {
+    if (!htmlUrl) { setSrcdoc(null); return }
+    setLoading(true)
+    fetch(htmlUrl)
+      .then(r => r.text())
+      .then(text => { setSrcdoc(text); setLoading(false) })
+      .catch(() => { setSrcdoc(null); setLoading(false) })
+  }, [htmlUrl, fetchKey])
 
   useEffect(() => {
     const h = () => setFs(!!document.fullscreenElement)
@@ -60,22 +72,23 @@ function PrototypeFrame({ htmlUrl, title }) {
     <div ref={wrapRef} className={`vb-frame-wrap${fullscreen ? ' vb-frame-fs' : ''}`}>
       <div className="vb-frame-toolbar">
         <span className="vb-frame-title">{title}</span>
-        <button className="btn-sm" onClick={() => setKey(k => k + 1)} title="Refresh">🔄</button>
+        {loading && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Memuat…</span>}
+        <button className="btn-sm" onClick={() => setFetchKey(k => k + 1)} title="Refresh">🔄</button>
         <button className="btn-sm vb-fs-btn" onClick={toggleFs} title={fullscreen ? 'Keluar fullscreen' : 'Fullscreen'}>
           {fullscreen ? '⊡' : '⊞'}
         </button>
       </div>
-      {htmlUrl
+      {srcdoc !== null
         ? <iframe
-            key={key}
-            src={htmlUrl}
+            key={fetchKey}
+            srcdoc={srcdoc}
             title={title || 'Preview'}
             className="vb-iframe"
             sandbox="allow-scripts allow-forms allow-popups allow-modals"
           />
         : <div className="vb-frame-empty">
-            <div className="vb-frame-empty-icon">🖥️</div>
-            <p>Belum ada file HTML.</p>
+            <div className="vb-frame-empty-icon">{loading ? '⏳' : htmlUrl ? '⚠️' : '🖥️'}</div>
+            <p>{loading ? 'Memuat preview…' : htmlUrl ? 'Gagal memuat preview.' : 'Belum ada file HTML.'}</p>
           </div>
       }
     </div>
