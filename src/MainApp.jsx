@@ -123,7 +123,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   const [allStudents, setAllStudents] = useState([])
   const [pwModalDone, setPwModalDone]   = useState(false)
   const [manualPwOpen, setManualPwOpen] = useState(false)
-  const [sidebarCollapsed, setCollapsed] = useState(false)  // desktop icon-only
+  const [sidebarCollapsed, setCollapsed] = useState(true)   // desktop icon-only; expands on hover
   const [sidebarOpen, setSidebarOpen]    = useState(false)  // mobile drawer
   const [notifications, setNotifications] = useState([])    // unread for current user
 
@@ -218,21 +218,14 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
   }, [viewProfile.is_admin, masqAs])
 
   function goToClass(sectionId) {
-    if (sidebarCollapsed) setCollapsed(false)
     const g = sectionGroup(sectionId)
     if (g === 'pre') setPreOpen(true)
     else setPostOpen(true)
     navigate({ type: 'class', sectionId })
   }
 
-  function togglePre() {
-    if (sidebarCollapsed) { setCollapsed(false); setPreOpen(true); return }
-    setPreOpen(x => !x)
-  }
-  function togglePost() {
-    if (sidebarCollapsed) { setCollapsed(false); setPostOpen(true); return }
-    setPostOpen(x => !x)
-  }
+  function togglePre()  { setPreOpen(x => !x) }
+  function togglePost() { setPostOpen(x => !x) }
 
   function exitMasquerade() {
     setMasqAs(null)
@@ -256,7 +249,11 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
-      <aside className={cls}>
+      <aside
+        className={cls}
+        onMouseEnter={() => { if (window.innerWidth > 768) setCollapsed(false) }}
+        onMouseLeave={() => { if (window.innerWidth > 768) setCollapsed(true) }}
+      >
         <div className="sidebar-header">
           <div className="sidebar-logo-row">
             <div className="sidebar-logo-icon"><AppLogo size={20} /></div>
@@ -453,14 +450,6 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             <span className="nav-icon">↩</span>
             <span className="nav-label">Keluar</span>
           </div>
-          {/* Desktop collapse toggle */}
-          <button
-            className="sidebar-collapse-btn"
-            onClick={() => setCollapsed(x => !x)}
-            title={sidebarCollapsed ? 'Buka sidebar' : 'Ciutkan sidebar'}
-          >
-            <span>{sidebarCollapsed ? '›' : '‹'}</span>
-          </button>
         </div>
       </aside>
 
