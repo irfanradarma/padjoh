@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../supabaseClient'
+import { SECTIONS } from '../../sections'
 import QuizView from './QuizView'
 
 function fmtDate(str) {
@@ -12,7 +13,6 @@ function fmtDate(str) {
 }
 
 // ── Google Sheets panel (section 2 only) ─────────────────────
-// Data embedded from IT Governance Audit Program (Responses) form
 const SHEET_ROWS = [
   { timestamp: '6/12/2026 10:27:58', npm: '4213250048', url: 'https://drive.google.com/open?id=1QcfvR4Ky5JXO0WMnjgsG3xlpr-LxDMwr' },
   { timestamp: '6/12/2026 22:59:36', npm: '4213250007', url: 'https://drive.google.com/open?id=1eVwSAPo_Yhjlm8jR4UoTXW1PyLs39rIc' },
@@ -201,11 +201,16 @@ function AdminSheetExercise({ students, selectedStudentId }) {
 // ── Regular upload: student own files ────────────────────────
 function StudentExerciseView({ sectionId, userId }) {
   const [files, setFiles]         = useState([])
+  const [myGrade, setMyGrade]     = useState(null)
   const [uploading, setUploading] = useState(false)
   const [dragover, setDragover]   = useState(false)
   const inputRef = useRef()
 
-  useEffect(() => { loadFiles() }, [sectionId, userId])
+  useEffect(() => {
+    loadFiles()
+    supabase.rpc('get_my_exercise_grade', { p_section_id: sectionId })
+      .then(({ data }) => setMyGrade(data ?? null))
+  }, [sectionId, userId])
 
   async function loadFiles() {
     const { data } = await supabase.rpc('get_my_exercises', { p_section_id: sectionId })
@@ -247,6 +252,14 @@ function StudentExerciseView({ sectionId, userId }) {
 
   return (
     <div>
+      {myGrade?.grade != null && (
+        <div className="ex-my-grade-banner">
+          <span className="ex-my-grade-label">Nilai Latihan Anda:</span>
+          <span className="gr-grade-chip">{myGrade.grade}</span>
+          {myGrade.notes && <span className="ex-my-grade-notes">{myGrade.notes}</span>}
+        </div>
+      )}
+
       <div
         className={`upload-zone${dragover ? ' dragover' : ''}`}
         onDragOver={e => { e.preventDefault(); setDragover(true) }}
@@ -373,11 +386,346 @@ function AdminExerciseView({ sectionId, selectedStudentId, students }) {
   )
 }
 
+// ── Grading: rubric editor ────────────────────────────────────
+const DEFAULT_EXERCISE_RUBRIC = {
+  criteria: [
+    { name: 'Kelengkapan',     max_score: 30, description: 'Kelengkapan tugas sesuai instruksi dan cakupan topik' },
+    { name: 'Pemahaman',       max_score: 35, description: 'Kedalaman pemahaman konsep IS Audit yang relevan' },
+    { name: 'Penerapan',       max_score: 25, description: 'Kemampuan menerapkan konsep pada kasus atau contoh nyata' },
+    { name: 'Kerapian',        max_score: 10, description: 'Sistematika penyajian, kerapian dokumen, dan tata bahasa' },
+  ],
+}
+
+function RubricEditor({ rubric, onChange }) {
+  const total = rubric.criteria.reduce((s, c) => s + Number(c.max_score || 0), 0)
+
+  function update(i, field, val) {
+    onChange({
+      ...rubric,
+      criteria: rubric.criteria.map((c, j) =>
+        j === i ? { ...c, [field]: field === 'max_score' ? Number(val) : val } : c
+      ),
+    })
+  }
+
+  return (
+    <div className="gr-rubric-editor">
+      <div className="gr-rubric-total-row">
+        <span className="gr-rubric-sub">Edit rubrik sebelum menilai. Berlaku untuk semua mahasiswa di sesi ini.</span>
+        <span className={`gr-rubric-total${total !== 100 ? ' gr-rubric-warn' : ''}`}>Total: {total} / 100</span>
+      </div>
+      {rubric.criteria.map((c, i) => (
+        <div key={i} className="gr-rubric-row">
+          <div className="gr-rubric-top">
+            <input className="input gr-rubric-name" value={c.name}
+              onChange={e => update(i, 'name', e.target.value)} placeholder="Nama kriteria" />
+            <div className="gr-rubric-score-wrap">
+              <input type="number" min="0" max="100" className="input gr-rubric-score"
+                value={c.max_score} onChange={e => update(i, 'max_score', e.target.value)} />
+              <span className="gr-rubric-pts">pts</span>
+            </div>
+          </div>
+          <input className="input gr-rubric-desc" value={c.description}
+            onChange={e => update(i, 'description', e.target.value)} placeholder="Deskripsi kriteria" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Grading: per-student inline form ─────────────────────────
+function ExerciseGradeForm({ studentId, sectionId, sectionTitle, rubric, initialGrade, onSave, onCancel }) {
+  const [score, setScore]     = useState(initialGrade?.grade != null ? String(initialGrade.grade) : '')
+  const [notes, setNotes]     = useState(initialGrade?.notes ?? '')
+  const [aiOpen, setAiOpen]   = useState(false)
+  const [context, setContext] = useState('')
+  const [aiResult, setAiResult] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [saving, setSaving]   = useState(false)
+  const [err, setErr]         = useState('')
+
+  async function generateAI() {
+    if (!context.trim()) { setErr('Tuliskan deskripsi submission terlebih dahulu.'); return }
+    setAiLoading(true); setErr('')
+    try {
+      const { data, error } = await supabase.functions.invoke('assess-exercise', {
+        body: { rubric, submission_context: context, section_title: sectionTitle },
+      })
+      if (error) throw new Error(error.message)
+      if (data?.error) throw new Error(data.error)
+      setAiResult(data)
+      if (data.total_score != null) setScore(String(data.total_score))
+      if (data.summary) setNotes(data.summary)
+    } catch (ex) {
+      setErr(ex.message)
+    }
+    setAiLoading(false)
+  }
+
+  async function handleSave() {
+    const n = parseFloat(score)
+    if (isNaN(n) || n < 0 || n > 100) { setErr('Nilai harus antara 0 dan 100.'); return }
+    setSaving(true); setErr('')
+    try {
+      await onSave({
+        grade: n,
+        notes: notes.trim() || null,
+        rubric: aiResult ? rubric : null,
+        explanation: aiResult ? JSON.stringify(aiResult) : null,
+      })
+    } catch (ex) {
+      setErr(ex.message)
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="ex-grade-form">
+      <div className="ex-grade-row">
+        <div className="ex-grade-score-col">
+          <label className="ex-grade-label">Nilai (0–100)</label>
+          <input
+            type="number" min="0" max="100" step="0.5"
+            className="input ex-grade-input"
+            value={score}
+            onChange={e => setScore(e.target.value)}
+            placeholder="0–100"
+          />
+        </div>
+        <div className="ex-grade-notes-col">
+          <label className="ex-grade-label">Catatan / Umpan Balik</label>
+          <textarea className="input" rows={2} value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Komentar untuk mahasiswa (opsional)…" />
+        </div>
+      </div>
+
+      <button className="gr-rubric-toggle ex-ai-toggle" onClick={() => setAiOpen(x => !x)}>
+        🤖 Nilai dengan AI {aiOpen ? '▲' : '▼'}
+      </button>
+
+      {aiOpen && (
+        <div className="ex-ai-panel">
+          <label className="ex-grade-label">
+            Deskripsi submission
+            <span style={{ fontWeight: 400, color: 'var(--muted)', marginLeft: 6 }}>
+              — tulis apa yang Anda lihat setelah membaca file mahasiswa
+            </span>
+          </label>
+          <textarea className="input ex-ai-context" rows={4} value={context}
+            onChange={e => setContext(e.target.value)}
+            placeholder="Contoh: Mahasiswa mengidentifikasi 3 kontrol IT governance dengan benar namun tidak menyertakan referensi standar ISACA. Analisis risiko cukup mendalam tapi kesimpulan kurang sistematis…" />
+          <button className="btn-sm btn-sm-primary" style={{ marginTop: 6 }}
+            onClick={generateAI} disabled={aiLoading}>
+            {aiLoading ? '⏳ Menilai…' : '▶ Generate Nilai AI'}
+          </button>
+
+          {aiResult && (
+            <div className="ex-ai-result">
+              <table className="gr-score-table">
+                <thead>
+                  <tr><th>Kriteria</th><th>Skor</th><th>Maks</th><th>Komentar</th></tr>
+                </thead>
+                <tbody>
+                  {(aiResult.scores ?? []).map((s, i) => (
+                    <tr key={i}>
+                      <td>{s.criterion}</td>
+                      <td className="gr-score-val">{s.score}</td>
+                      <td className="gr-score-max">/{s.max_score}</td>
+                      <td>{s.comment}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {aiResult.summary && <p className="gr-summary">{aiResult.summary}</p>}
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                AI menyarankan nilai <strong>{aiResult.total_score}</strong> — Anda bisa mengubahnya di atas sebelum menyimpan.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {err && <div className="um-load-err" style={{ marginTop: 8 }}>{err}</div>}
+
+      <div className="ex-grade-btns">
+        <button className="btn" onClick={onCancel}>Batal</button>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+          {saving ? 'Menyimpan…' : '💾 Simpan Nilai'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Grade detail modal ────────────────────────────────────────
+function GradeDetailModal({ grade, studentName, onClose }) {
+  let parsed = null
+  try { if (grade.explanation) parsed = JSON.parse(grade.explanation) } catch {}
+
+  return (
+    <div className="pw-overlay">
+      <div className="pw-modal gr-modal">
+        <h3 className="pw-modal-title">{studentName} · Nilai {grade.grade}</h3>
+        {parsed ? (
+          <>
+            <table className="gr-score-table">
+              <thead><tr><th>Kriteria</th><th>Skor</th><th>Maks</th><th>Komentar</th></tr></thead>
+              <tbody>
+                {(parsed.scores ?? []).map((s, i) => (
+                  <tr key={i}>
+                    <td>{s.criterion}</td>
+                    <td className="gr-score-val">{s.score}</td>
+                    <td className="gr-score-max">/{s.max_score}</td>
+                    <td>{s.comment}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {parsed.summary && <p className="gr-summary">{parsed.summary}</p>}
+          </>
+        ) : grade.notes ? (
+          <p className="gr-raw-explanation">{grade.notes}</p>
+        ) : (
+          <p style={{ color: 'var(--muted)', fontSize: 13 }}>Tidak ada detail penilaian.</p>
+        )}
+        <div className="pw-modal-btns">
+          <button className="btn btn-primary" onClick={onClose}>Tutup</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Admin: grading section (all sessions) ─────────────────────
+function AdminGradingSection({ sectionId, sectionTitle, students, selectedStudentId }) {
+  const [grades, setGrades]         = useState({})
+  const [rubric, setRubric]         = useState(DEFAULT_EXERCISE_RUBRIC)
+  const [rubricOpen, setRubricOpen] = useState(false)
+  const [editingId, setEditingId]   = useState(null)
+  const [detailModal, setDetailModal] = useState(null)
+  const [loading, setLoading]       = useState(true)
+
+  useEffect(() => { loadGrades() }, [sectionId])
+
+  async function loadGrades() {
+    setLoading(true)
+    const { data } = await supabase.rpc('admin_get_exercise_grades', { p_section_id: sectionId })
+    const map = {}
+    for (const g of data ?? []) map[g.user_id] = g
+    setGrades(map)
+    setLoading(false)
+  }
+
+  async function saveGrade(studentId, data) {
+    const { error } = await supabase.rpc('admin_save_exercise_grade', {
+      p_user_id:     studentId,
+      p_section_id:  sectionId,
+      p_grade:       data.grade,
+      p_notes:       data.notes,
+      p_rubric:      data.rubric,
+      p_explanation: data.explanation,
+    })
+    if (error) throw new Error(error.message)
+    await loadGrades()
+    setEditingId(null)
+  }
+
+  const displayStudents = selectedStudentId
+    ? students.filter(s => s.id === selectedStudentId)
+    : students
+
+  const gradedCount = displayStudents.filter(s => grades[s.id]?.grade != null).length
+
+  return (
+    <div className="ex-grading-section">
+      {detailModal && (
+        <GradeDetailModal
+          grade={detailModal.grade}
+          studentName={detailModal.name}
+          onClose={() => setDetailModal(null)}
+        />
+      )}
+
+      <div className="ex-grading-header">
+        <span className="ex-grading-title">🎯 Penilaian Latihan</span>
+        <span className="ex-grading-count">{gradedCount} / {displayStudents.length} sudah dinilai</span>
+      </div>
+
+      <div className="gr-rubric-section">
+        <button className="gr-rubric-toggle" onClick={() => setRubricOpen(x => !x)}>
+          📋 Rubrik Penilaian {rubricOpen ? '▲' : '▼'}
+        </button>
+        {rubricOpen && (
+          <div className="gr-rubric-body">
+            <RubricEditor rubric={rubric} onChange={setRubric} />
+            <button className="btn-sm" style={{ marginTop: 10 }} onClick={() => setRubric(DEFAULT_EXERCISE_RUBRIC)}>
+              ↺ Reset ke Default
+            </button>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="empty-state" style={{ paddingTop: 20 }}><p>Memuat nilai…</p></div>
+      ) : (
+        <div className="ex-grade-list">
+          {displayStudents.map(s => {
+            const grade = grades[s.id]
+            const isEditing = editingId === s.id
+            return (
+              <div key={s.id} className="ex-grade-student-row">
+                <div className="ex-grade-student-info">
+                  <div className="ex-grade-student-name">{s.name}</div>
+                  <div className="ex-grade-student-meta">{s.npm} · {s.class}</div>
+                </div>
+                <div className="ex-grade-student-right">
+                  {grade?.grade != null && !isEditing && (
+                    <>
+                      <span className="gr-grade-chip">{grade.grade}</span>
+                      <button className="btn-sm" onClick={() => setDetailModal({ grade, name: s.name })}>📋</button>
+                      <button className="btn-sm btn-sm-primary" onClick={() => setEditingId(s.id)}>✏️</button>
+                    </>
+                  )}
+                  {grade?.grade == null && !isEditing && (
+                    <button className="btn-sm btn-sm-primary" onClick={() => setEditingId(s.id)}>
+                      + Beri Nilai
+                    </button>
+                  )}
+                  {isEditing && (
+                    <button className="btn-sm" onClick={() => setEditingId(null)}>✕ Batal</button>
+                  )}
+                </div>
+                {isEditing && (
+                  <div className="ex-grade-form-wrap">
+                    <ExerciseGradeForm
+                      studentId={s.id}
+                      sectionId={sectionId}
+                      sectionTitle={sectionTitle}
+                      rubric={rubric}
+                      initialGrade={grade}
+                      onSave={data => saveGrade(s.id, data)}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {displayStudents.length === 0 && (
+            <div className="empty-state"><p>Tidak ada mahasiswa yang sesuai filter.</p></div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Admin: quiz section ───────────────────────────────────────
 function AdminQuizSection({ sectionId, students, onOpenSession }) {
   const [deployments, setDeployments] = useState([])
   const [loading, setLoading]         = useState(true)
-  const [openingFor, setOpeningFor]   = useState(null)  // 'deployId/class'
+  const [openingFor, setOpeningFor]   = useState(null)
 
   useEffect(() => {
     supabase.rpc('get_section_quiz_deployments', { p_section_id: sectionId })
@@ -392,7 +740,6 @@ function AdminQuizSection({ sectionId, students, onOpenSession }) {
     })
     setOpeningFor(null)
     if (error) { alert(error.message); return }
-    // Refresh deployment list then open
     const { data } = await supabase.rpc('get_section_quiz_deployments', { p_section_id: sectionId })
     setDeployments(data ?? [])
     const dep = (data ?? []).find(d => d.deployment_id === deploymentId)
@@ -524,6 +871,8 @@ export default function ExerciseTab({ sectionId, userId, profile, selectedStuden
   const isSection2 = sectionId === 2
   const [quizView, setQuizView] = useState(null)
 
+  const sectionTitle = SECTIONS.find(s => s.id === sectionId)?.title ?? `Sesi ${sectionId}`
+
   if (quizView) {
     return (
       <QuizView
@@ -549,12 +898,17 @@ export default function ExerciseTab({ sectionId, userId, profile, selectedStuden
     return (
       <div>
         <AdminQuizSection sectionId={sectionId} students={students} onOpenSession={openSession} />
-        {isSection2 && (
+        {isSection2 ? (
           <AdminSheetExercise students={students} selectedStudentId={selectedStudentId} />
-        )}
-        {!isSection2 && (
+        ) : (
           <AdminExerciseView sectionId={sectionId} selectedStudentId={selectedStudentId} students={students} />
         )}
+        <AdminGradingSection
+          sectionId={sectionId}
+          sectionTitle={sectionTitle}
+          students={students}
+          selectedStudentId={selectedStudentId}
+        />
       </div>
     )
   }
