@@ -416,6 +416,11 @@ function RubricEditor({ rubric, onChange }) {
     })
   }
 
+  function remove(i) {
+    if (rubric.criteria.length <= 1) return
+    onChange({ ...rubric, criteria: rubric.criteria.filter((_, j) => j !== i) })
+  }
+
   return (
     <div className="gr-rubric-editor">
       <div className="gr-rubric-total-row">
@@ -432,6 +437,13 @@ function RubricEditor({ rubric, onChange }) {
                 value={c.max_score} onChange={e => update(i, 'max_score', e.target.value)} />
               <span className="gr-rubric-pts">pts</span>
             </div>
+            <button
+              type="button"
+              className="gr-rubric-remove-btn"
+              title="Hapus parameter ini"
+              onClick={() => remove(i)}
+              disabled={rubric.criteria.length <= 1}
+            >✕</button>
           </div>
           <input className="input gr-rubric-desc" value={c.description}
             onChange={e => update(i, 'description', e.target.value)} placeholder="Deskripsi kriteria" />
