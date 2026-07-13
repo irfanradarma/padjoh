@@ -443,6 +443,32 @@ function buildAutoContext(files, sheetRow) {
   return `Mahasiswa mengunggah ${files.length} file:\n${list}`
 }
 
+// ── Grading: latest submission timestamp + deadline comparison ────
+function latestTimestamp(files) {
+  if (!files || files.length === 0) return null
+  return files.reduce((latest, f) =>
+    (!latest || new Date(f.uploaded_at) > new Date(latest)) ? f.uploaded_at : latest, null)
+}
+
+function describeTimeliness(submittedAt, dueDate) {
+  if (!submittedAt) return null
+  const submittedStr = fmtDate(submittedAt)
+  if (!dueDate) {
+    return `Waktu pengumpulan: ${submittedStr} (tidak ada tenggat waktu tercatat untuk sesi ini).`
+  }
+  const dueStr = fmtDate(dueDate)
+  const diffHours = (new Date(submittedAt) - new Date(dueDate)) / 3_600_000
+  let status
+  if (diffHours <= 0) {
+    const hrsBefore = Math.abs(diffHours)
+    status = hrsBefore < 1 ? 'TEPAT WAKTU (kurang dari 1 jam sebelum tenggat)' : `TEPAT WAKTU (${Math.round(hrsBefore)} jam sebelum tenggat)`
+  } else {
+    const daysLate = diffHours / 24
+    status = daysLate < 1 ? `TERLAMBAT (${Math.round(diffHours)} jam setelah tenggat)` : `TERLAMBAT (${Math.round(daysLate)} hari setelah tenggat)`
+  }
+  return `Waktu pengumpulan: ${submittedStr}. Tenggat waktu sesi ini: ${dueStr}. Status: ${status}.`
+}
+
 function round1(n) { return Math.round(n * 10) / 10 }
 
 // ── Grading: inline rendering for a single file, by type ──────
@@ -542,6 +568,7 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
   const [loading, setLoading]           = useState(true)
   const [filesByUser, setFilesByUser]   = useState({})
   const [filesLoading, setFilesLoading] = useState(!isSection2)
+  const [assignments, setAssignments]   = useState([])
 
   const [classFilter, setClassFilter]   = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -557,6 +584,10 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 })
 
   useEffect(() => { loadGrades() }, [sectionId])
+
+  useEffect(() => {
+    supabase.rpc('get_all_assignments').then(({ data }) => setAssignments(data ?? []))
+  }, [])
 
   useEffect(() => {
     if (isSection2) { setFilesByUser({}); setFilesLoading(false); return }
@@ -654,12 +685,25 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
     return (filesByUser[studentId]?.length ?? 0) > 0
   }
 
+  const sectionAssignments = assignments.filter(a => a.section_id === sectionId)
+  const sectionDueDate = sectionAssignments.length === 1 ? sectionAssignments[0].due_date : null
+
+  function timelinessFor(studentId) {
+    const files = filesByUser[studentId] ?? []
+    const npm = students.find(s => s.id === studentId)?.npm
+    const sheetRow = isSection2 ? SHEET_ROWS.find(r => r.npm === npm) : null
+    const submittedAt = isSection2 ? sheetRow?.timestamp : latestTimestamp(files)
+    return describeTimeliness(submittedAt, sectionDueDate)
+  }
+
   async function assessStudentWithAI(studentId) {
     const files = filesByUser[studentId] ?? []
     const npm = students.find(s => s.id === studentId)?.npm
     const sheetRow = isSection2 ? SHEET_ROWS.find(r => r.npm === npm) : null
-    const context = (aiContextEdits[studentId] ?? '').trim() || buildAutoContext(files, sheetRow)
-    if (!context) throw new Error('Belum ada file/laporan untuk dinilai AI.')
+    const userContext = (aiContextEdits[studentId] ?? '').trim() || buildAutoContext(files, sheetRow)
+    if (!userContext) throw new Error('Belum ada file/laporan untuk dinilai AI.')
+    const timeInfo = timelinessFor(studentId)
+    const context = timeInfo ? `${timeInfo}\n\n${userContext}` : userContext
     const { data, error } = await supabase.functions.invoke('assess-exercise', {
       body: { rubric, submission_context: context, section_title: sectionTitle },
     })
@@ -829,6 +873,9 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
                                 placeholder="Komentar untuk mahasiswa (opsional)…" />
 
                               <div className="ex-tbl-expand-label" style={{ marginTop: 12 }}>🤖 Konteks untuk Penilaian AI</div>
+                              {timelinessFor(s.id) && (
+                                <div className="ex-tbl-time-info">⏱ {timelinessFor(s.id)}</div>
+                              )}
                               <textarea className="input ex-ai-context" rows={3}
                                 value={aiContextEdits[s.id] ?? ''}
                                 onChange={e => setAiContextEdits(prev => ({ ...prev, [s.id]: e.target.value }))}

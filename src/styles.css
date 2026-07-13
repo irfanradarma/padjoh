@@ -1577,6 +1577,7 @@ body {
 }
 .ex-tbl-expand-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .ex-tbl-expand-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+.ex-tbl-time-info { font-size: 12px; color: var(--muted); background: var(--surface2); border-radius: 5px; padding: 6px 9px; line-height: 1.5; }
 
 .ex-tbl-files { display: flex; flex-direction: column; gap: 10px; max-height: 480px; overflow-y: auto; padding-right: 2px; }
 .ex-tbl-file-block { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
