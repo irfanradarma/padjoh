@@ -379,9 +379,10 @@ function StudentRecap({ resultData, isTournament, sessionId }) {
   }, [sessionId])
 
   const pairs = isTournament ? computePairs(results) : []
-  const myPairGroup = my_result
-    ? pairs.find(g => g.some(m => m.rank === my_result.rank))
-    : null
+  const myPairIndex = my_result
+    ? pairs.findIndex(g => g.some(m => m.rank === my_result.rank))
+    : -1
+  const myPairGroup = myPairIndex >= 0 ? pairs[myPairIndex] : null
 
   const totalScores = results
     .map(r => r.total !== undefined && r.total !== null ? Number(r.total) : null)
@@ -435,7 +436,10 @@ function StudentRecap({ resultData, isTournament, sessionId }) {
 
       {isTournament && myPairGroup && (
         <div className="qv-recap-pair-section">
-          <h3 className="qv-recap-pair-title">Pasangan Anda Selanjutnya</h3>
+          <h3 className="qv-recap-pair-title">
+            Kelompok Anda Selanjutnya
+            <span className="qv-recap-pair-group-badge">Grup {myPairIndex + 1}</span>
+          </h3>
           <div className="qv-recap-pair-group">
             {myPairGroup.map(m => {
               const isMe = m.rank === my_result?.rank
