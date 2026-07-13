@@ -1539,6 +1539,8 @@ body {
 .ex-ai-result { margin-top: 10px; }
 
 /* -- Exercise grading table (spreadsheet-style) -- */
+.ex-tbl-deadline-row { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+.ex-tbl-deadline-hint { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 .ex-tbl-toolbar { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 .ex-tbl-filter { display: flex; flex-direction: column; gap: 4px; }
 .ex-tbl-filter label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }

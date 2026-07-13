@@ -12,6 +12,14 @@ function fmtDate(str) {
   })
 }
 
+function localDt(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d)) return ''
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 // ── Google Sheets panel (section 2 only) ─────────────────────
 const SHEET_ROWS = [
   { timestamp: '6/12/2026 10:27:58', npm: '4213250048', url: 'https://drive.google.com/open?id=1QcfvR4Ky5JXO0WMnjgsG3xlpr-LxDMwr' },
@@ -569,6 +577,7 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
   const [filesByUser, setFilesByUser]   = useState({})
   const [filesLoading, setFilesLoading] = useState(!isSection2)
   const [assignments, setAssignments]   = useState([])
+  const [manualDeadline, setManualDeadline] = useState('') // datetime-local string, overrides auto-detected deadline
 
   const [classFilter, setClassFilter]   = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -588,6 +597,14 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
   useEffect(() => {
     supabase.rpc('get_all_assignments').then(({ data }) => setAssignments(data ?? []))
   }, [])
+
+  // Pre-fill the manual deadline once from the recorded assignment, if there's exactly one
+  // and the admin hasn't already touched the field.
+  useEffect(() => {
+    if (manualDeadline) return
+    const matches = assignments.filter(a => a.section_id === sectionId)
+    if (matches.length === 1) setManualDeadline(localDt(matches[0].due_date))
+  }, [assignments, sectionId])
 
   useEffect(() => {
     if (isSection2) { setFilesByUser({}); setFilesLoading(false); return }
@@ -686,14 +703,15 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
   }
 
   const sectionAssignments = assignments.filter(a => a.section_id === sectionId)
-  const sectionDueDate = sectionAssignments.length === 1 ? sectionAssignments[0].due_date : null
+  const autoDueDate = sectionAssignments.length === 1 ? sectionAssignments[0].due_date : null
+  const effectiveDueDate = manualDeadline ? new Date(manualDeadline).toISOString() : autoDueDate
 
   function timelinessFor(studentId) {
     const files = filesByUser[studentId] ?? []
     const npm = students.find(s => s.id === studentId)?.npm
     const sheetRow = isSection2 ? SHEET_ROWS.find(r => r.npm === npm) : null
     const submittedAt = isSection2 ? sheetRow?.timestamp : latestTimestamp(files)
-    return describeTimeliness(submittedAt, sectionDueDate)
+    return describeTimeliness(submittedAt, effectiveDueDate)
   }
 
   async function assessStudentWithAI(studentId) {
@@ -772,6 +790,29 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
                 onClick={() => setRubric(r => ({ criteria: [...r.criteria, { name: 'Parameter Baru', max_score: 10, description: '' }] }))}>
                 + Tambah Parameter
               </button>
+            </div>
+
+            <div className="ex-tbl-deadline-row">
+              <label className="ex-grade-label">⏱ Tenggat Waktu untuk Penilaian AI</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="datetime-local"
+                  className="input"
+                  style={{ maxWidth: 220 }}
+                  value={manualDeadline}
+                  onChange={e => setManualDeadline(e.target.value)}
+                />
+                {manualDeadline && (
+                  <button className="btn-sm" onClick={() => setManualDeadline('')}>✕ Hapus</button>
+                )}
+              </div>
+              <div className="ex-tbl-deadline-hint">
+                {manualDeadline
+                  ? 'Tenggat ini dipakai untuk menghitung status tepat waktu/terlambat saat menilai dengan AI.'
+                  : autoDueDate
+                    ? 'Belum diatur manual — akan otomatis memakai tenggat waktu yang tercatat di Kelola Deadline untuk sesi ini.'
+                    : 'Belum ada tenggat waktu. Isi tanggal di atas jika ingin AI menilai ketepatan waktu pengumpulan.'}
+              </div>
             </div>
           </div>
         )}
