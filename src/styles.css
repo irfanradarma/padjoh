@@ -1560,6 +1560,8 @@ body {
   background: var(--surface2); white-space: nowrap;
 }
 .ex-tbl-max { font-weight: 400; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.ex-tbl-th-sortable { cursor: pointer; user-select: none; transition: color 0.15s; }
+.ex-tbl-th-sortable:hover { color: var(--accent); }
 .ex-tbl tbody td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
 .ex-tbl-row { cursor: pointer; transition: background 0.1s; }
 .ex-tbl-row:hover td { background: var(--surface2); }
@@ -1568,6 +1570,7 @@ body {
 .ex-tbl-chevron { font-size: 11px; color: var(--muted); width: 10px; flex-shrink: 0; }
 .ex-tbl-missing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex-shrink: 0; }
 .ex-tbl-npm { font-family: monospace; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.ex-tbl-submitted { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .ex-tbl-cell-input {
   width: 64px; padding: 5px 7px; text-align: center;
   background: var(--surface2); border: 1px solid var(--border); border-radius: 5px;

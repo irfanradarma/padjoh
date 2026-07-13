@@ -12,6 +12,14 @@ function fmtDate(str) {
   })
 }
 
+function fmtDateShort(str) {
+  if (!str) return '—'
+  const d = new Date(str)
+  return isNaN(d) ? '—' : d.toLocaleDateString('id-ID', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  })
+}
+
 function localDt(iso) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -594,6 +602,8 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
   const [classFilter, setClassFilter]   = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [expandedId, setExpandedId]     = useState(null)
+  const [sortKey, setSortKey]           = useState(null) // 'name' | 'npm' | 'submitted' | 'final' | <criterion index>
+  const [sortDir, setSortDir]           = useState('asc')
 
   const [edits, setEdits]                   = useState({}) // studentId -> string[]
   const [notesEdits, setNotesEdits]         = useState({}) // studentId -> string
@@ -714,6 +724,14 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
     return (filesByUser[studentId]?.length ?? 0) > 0
   }
 
+  function submissionTimeFor(studentId) {
+    if (isSection2) {
+      const npm = students.find(s => s.id === studentId)?.npm
+      return SHEET_ROWS.find(r => r.npm === npm)?.timestamp ?? null
+    }
+    return latestTimestamp(filesByUser[studentId])
+  }
+
   const sectionAssignments = assignments.filter(a => a.section_id === sectionId)
   const autoDueDate = sectionAssignments.length === 1 ? sectionAssignments[0].due_date : null
   const effectiveDueDate = manualDeadline ? new Date(manualDeadline).toISOString() : autoDueDate
@@ -779,8 +797,39 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
     return true
   })
 
+  function sortValue(s, key) {
+    if (key === 'name') return (s.name ?? '').toLowerCase()
+    if (key === 'npm') return s.npm ?? ''
+    if (key === 'submitted') {
+      const t = submissionTimeFor(s.id)
+      return t ? new Date(t).getTime() : null
+    }
+    if (key === 'final') return computeTotal(s.id)
+    const raw = cellValue(s.id, key)
+    if (raw === '' || raw == null) return null
+    const v = parseFloat(raw)
+    return isNaN(v) ? null : v
+  }
+
+  function toggleSort(key) {
+    if (sortKey === key) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const sortedStudents = sortKey === null ? filteredStudents : [...filteredStudents].sort((a, b) => {
+    const va = sortValue(a, sortKey)
+    const vb = sortValue(b, sortKey)
+    const aNull = va == null || va === ''
+    const bNull = vb == null || vb === ''
+    if (aNull && bNull) return 0
+    if (aNull) return 1
+    if (bNull) return -1
+    const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+
   const gradedCount = filteredStudents.filter(s => grades[s.id]?.grade != null).length
-  const totalCols = 2 + rubric.criteria.length + 2
+  const totalCols = 3 + rubric.criteria.length + 2
 
   return (
     <div className="ex-grading-section">
@@ -858,17 +907,29 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
           <table className="ex-tbl">
             <thead>
               <tr>
-                <th>Nama</th>
-                <th>NPM</th>
+                <th className="ex-tbl-th-sortable" onClick={() => toggleSort('name')}>
+                  Nama{sortKey === 'name' && (sortDir === 'asc' ? ' ▲' : ' ▼')}
+                </th>
+                <th className="ex-tbl-th-sortable" onClick={() => toggleSort('npm')}>
+                  NPM{sortKey === 'npm' && (sortDir === 'asc' ? ' ▲' : ' ▼')}
+                </th>
+                <th className="ex-tbl-th-sortable" onClick={() => toggleSort('submitted')}>
+                  Waktu Submit{sortKey === 'submitted' && (sortDir === 'asc' ? ' ▲' : ' ▼')}
+                </th>
                 {rubric.criteria.map((c, i) => (
-                  <th key={i}>{c.name} <span className="ex-tbl-max">/{c.max_score}</span></th>
+                  <th key={i} className="ex-tbl-th-sortable" onClick={() => toggleSort(i)}>
+                    {c.name} <span className="ex-tbl-max">/{c.max_score}</span>
+                    {sortKey === i && (sortDir === 'asc' ? ' ▲' : ' ▼')}
+                  </th>
                 ))}
-                <th>Nilai Final</th>
+                <th className="ex-tbl-th-sortable" onClick={() => toggleSort('final')}>
+                  Nilai Final{sortKey === 'final' && (sortDir === 'asc' ? ' ▲' : ' ▼')}
+                </th>
                 <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {filteredStudents.map(s => {
+              {sortedStudents.map(s => {
                 const total = computeTotal(s.id)
                 const isOpen = expandedId === s.id
                 const submitted = hasSubmission(s.id)
@@ -884,6 +945,7 @@ function AdminGradingTable({ sectionId, sectionTitle, students, selectedStudentI
                         {!submitted && <span className="ex-tbl-missing-dot" title="Belum submit" />}
                       </td>
                       <td className="ex-tbl-npm">{s.npm}</td>
+                      <td className="ex-tbl-submitted">{fmtDateShort(submissionTimeFor(s.id))}</td>
                       {rubric.criteria.map((c, i) => (
                         <td key={i} onClick={e => e.stopPropagation()}>
                           <input
