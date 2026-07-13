@@ -445,6 +445,54 @@ function buildAutoContext(files, sheetRow) {
 
 function round1(n) { return Math.round(n * 10) / 10 }
 
+// ── Grading: inline rendering for a single file, by type ──────
+function classifyFile(fileName) {
+  const ext = (fileName.split('.').pop() || '').toLowerCase()
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return 'image'
+  if (ext === 'pdf') return 'pdf'
+  if (['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext)) return 'office'
+  if (['txt', 'csv', 'md', 'json', 'log'].includes(ext)) return 'text'
+  return 'other'
+}
+
+function InlineFilePreview({ file, url }) {
+  const kind = classifyFile(file.file_name)
+  const [textContent, setTextContent] = useState(null)
+  const [textErr, setTextErr]         = useState(false)
+
+  useEffect(() => {
+    if (kind !== 'text' || !url) return
+    let cancelled = false
+    setTextContent(null); setTextErr(false)
+    fetch(url).then(r => r.text()).then(t => { if (!cancelled) setTextContent(t) })
+      .catch(() => { if (!cancelled) setTextErr(true) })
+    return () => { cancelled = true }
+  }, [kind, url])
+
+  if (!url) return <div className="ex-tbl-file-loading">Memuat pratinjau…</div>
+  if (kind === 'image') return <img src={url} alt={file.file_name} className="ex-tbl-file-img" />
+  if (kind === 'pdf')   return <iframe src={url} className="ex-tbl-file-frame" title={file.file_name} />
+  if (kind === 'office') {
+    return (
+      <iframe
+        src={`https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`}
+        className="ex-tbl-file-frame"
+        title={file.file_name}
+      />
+    )
+  }
+  if (kind === 'text') {
+    if (textErr) return <div className="ex-tbl-file-unsupported">Gagal memuat isi file. Gunakan tombol "↗ Buka" di atas.</div>
+    if (textContent == null) return <div className="ex-tbl-file-loading">Memuat isi file…</div>
+    return <pre className="ex-tbl-file-text">{textContent}</pre>
+  }
+  return (
+    <div className="ex-tbl-file-unsupported">
+      Format file ini tidak dapat ditampilkan langsung di sini. Gunakan tombol "↗ Buka" di atas.
+    </div>
+  )
+}
+
 // ── Grading: submission preview (accordion body) ──────────────
 function SubmissionPreview({ files, isSection2, sheetRow }) {
   const [signedUrls, setSignedUrls] = useState({})
@@ -471,9 +519,6 @@ function SubmissionPreview({ files, isSection2, sheetRow }) {
     <div className="ex-tbl-files">
       {files.map(f => {
         const url = signedUrls[f.id]
-        const ext = (f.file_name.split('.').pop() || '').toLowerCase()
-        const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)
-        const isPdf = ext === 'pdf'
         return (
           <div key={f.id} className="ex-tbl-file-block">
             <div className="ex-tbl-file-head">
@@ -481,8 +526,7 @@ function SubmissionPreview({ files, isSection2, sheetRow }) {
               <span className="file-meta">{fmtDate(f.uploaded_at)}</span>
               {url && <a href={url} target="_blank" rel="noreferrer" className="btn-sm">↗ Buka</a>}
             </div>
-            {url && isImg && <img src={url} alt={f.file_name} className="ex-tbl-file-img" />}
-            {url && isPdf && <iframe src={url} className="ex-tbl-file-frame" title={f.file_name} />}
+            <InlineFilePreview file={f} url={url} />
           </div>
         )
       })}

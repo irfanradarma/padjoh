@@ -1578,11 +1578,19 @@ body {
 .ex-tbl-expand-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .ex-tbl-expand-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
 
-.ex-tbl-files { display: flex; flex-direction: column; gap: 10px; }
+.ex-tbl-files { display: flex; flex-direction: column; gap: 10px; max-height: 480px; overflow-y: auto; padding-right: 2px; }
 .ex-tbl-file-block { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .ex-tbl-file-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px; flex-wrap: wrap; }
-.ex-tbl-file-img { display: block; width: 100%; max-height: 320px; object-fit: contain; background: var(--surface2); border-top: 1px solid var(--border); }
-.ex-tbl-file-frame { width: 100%; height: 360px; border: none; border-top: 1px solid var(--border); background: var(--surface2); }
+.ex-tbl-file-img { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--surface2); border-top: 1px solid var(--border); }
+.ex-tbl-file-frame { width: 100%; height: 420px; border: none; border-top: 1px solid var(--border); background: var(--surface2); }
+.ex-tbl-file-loading { padding: 24px; text-align: center; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--border); }
+.ex-tbl-file-unsupported { padding: 16px; text-align: center; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--border); line-height: 1.6; }
+.ex-tbl-file-text {
+  margin: 0; padding: 12px 14px; max-height: 420px; overflow: auto;
+  border-top: 1px solid var(--border); background: var(--bg);
+  font-family: monospace; font-size: 12px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; color: var(--text);
+}
 
 @media (max-width: 768px) {
   .ex-tbl-expand-body { grid-template-columns: 1fr; }
