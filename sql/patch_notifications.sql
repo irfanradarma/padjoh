@@ -125,9 +125,12 @@ declare
   v_quiz_id        uuid;
   v_reveal         boolean;
   v_session_status text;
+  v_reveal_mode    text;
+  v_reveal_delay   integer;
+  v_finished       timestamptz;
 begin
-  select status, deployment_id
-  into v_session_status, v_dep_id
+  select status, deployment_id, finished_at
+  into v_session_status, v_dep_id, v_finished
   from public.quiz_sessions where id = p_session_id;
 
   if v_session_status != 'finished' then
@@ -141,11 +144,18 @@ begin
     ) then raise exception 'Unauthorized'; end if;
   end if;
 
-  select q.id, qd.reveal_answers
-  into v_quiz_id, v_reveal
+  select q.id, q.reveal_mode, q.reveal_delay
+  into v_quiz_id, v_reveal_mode, v_reveal_delay
   from public.quiz_deployments qd
   join public.quizzes q on q.id = qd.quiz_id
   where qd.id = v_dep_id;
+
+  v_reveal := case
+    when v_reveal_mode = 'immediate' then true
+    when v_reveal_mode = 'delayed'   then
+      v_finished is not null and now() >= v_finished + (v_reveal_delay * interval '1 minute')
+    else false
+  end;
 
   return coalesce((
     select jsonb_agg(
