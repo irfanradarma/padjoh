@@ -5,17 +5,21 @@ import { SECTIONS } from '../sections'
 export default function DashboardPage({ profile, starsMap = {}, onNavigate, onManageDeadlines }) {
   const [assignments, setAssignments] = useState([])
   const [noteCount, setNoteCount]     = useState(0)
+  const [utsGrade, setUtsGrade]       = useState(null)
+  const [utsOpen, setUtsOpen]         = useState(false)
   const [loading, setLoading]         = useState(true)
   const [expanded, setExpanded]       = useState(null)
 
   useEffect(() => {
     async function load() {
-      const [{ data: a }, { data: n }] = await Promise.all([
+      const [{ data: a }, { data: n }, { data: g }] = await Promise.all([
         supabase.rpc('get_assignments'),
         supabase.rpc('get_my_note_count'),
+        ...(profile.is_admin ? [Promise.resolve({ data: null })] : [supabase.rpc('get_my_uts_grade')]),
       ])
       setAssignments(a ?? [])
       setNoteCount(n ?? 0)
+      setUtsGrade(g)
       setLoading(false)
     }
     load()
@@ -69,6 +73,25 @@ export default function DashboardPage({ profile, starsMap = {}, onNavigate, onMa
             <div className="stat-value">{assignments.length}</div>
             <div className="stat-sub">tugas mendatang</div>
           </div>
+        )}
+        {!profile.is_admin && (
+          <button
+            type="button"
+            className={`stat-card stat-card-button${utsOpen ? ' is-open' : ''}`}
+            onClick={() => setUtsOpen(open => !open)}
+            aria-expanded={utsOpen}
+          >
+            <div className="stat-label">Nilai UTS</div>
+            <div className="stat-value">{utsGrade?.nilai ?? '—'}</div>
+            <div className="stat-sub">{utsGrade ? 'Klik untuk melihat rincian' : 'Nilai belum tersedia'}</div>
+            {utsOpen && utsGrade && (
+              <div className="uts-breakdown">
+                <div><span>Pilihan ganda</span><strong>{utsGrade.pilihan_ganda}</strong></div>
+                <div><span>Esai</span><strong>{utsGrade.esai}</strong></div>
+                <div><span>Rata-rata kelas</span><strong>{utsGrade.rata_rata_kelas}</strong></div>
+              </div>
+            )}
+          </button>
         )}
       </div>
 

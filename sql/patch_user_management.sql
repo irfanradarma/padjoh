@@ -140,7 +140,7 @@ begin
   values
     (v_uid, '00000000-0000-0000-0000-000000000000',
      'authenticated', 'authenticated',
-     v_eml, crypt('PKNstan2025!', gen_salt('bf', 10)), now(),
+     v_eml, extensions.crypt('PKNstan2025!', extensions.gen_salt('bf', 10)), now(),
      '{"provider":"email","providers":["email"]}'::jsonb,
      '{"email_verified":true}'::jsonb,
      '', '', '', '', '', '',
@@ -174,7 +174,7 @@ begin
     raise exception 'Unauthorized';
   end if;
   update auth.users
-  set encrypted_password = crypt('PKNstan2025!', gen_salt('bf', 10)),
+  set encrypted_password = extensions.crypt('PKNstan2025!', extensions.gen_salt('bf', 10)),
       updated_at         = now()
   where id = p_user_id;
   update public.profiles

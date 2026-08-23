@@ -344,6 +344,11 @@ body {
 .stat-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
 .stat-value { font-size: 30px; font-weight: 700; color: var(--text); line-height: 1; }
 .stat-sub   { font-size: 12px; color: var(--muted); margin-top: 5px; }
+.stat-card-button { width: 100%; text-align: left; font: inherit; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.stat-card-button:hover, .stat-card-button:focus-visible, .stat-card-button.is-open { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); outline: none; }
+.uts-breakdown { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 10px; display: grid; gap: 6px; }
+.uts-breakdown div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
+.uts-breakdown strong { color: var(--text); }
 
 /* â”€â”€ Deadlines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .deadline-list { display: flex; flex-direction: column; gap: 8px; }
