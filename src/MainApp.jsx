@@ -561,7 +561,7 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         )}
         {visited.has('sql') && (
           <div style={{ display: page.type === 'sql' ? '' : 'none' }}>
-            <SqlPage key={`${masqAs?.id ?? 'self'}-${viewProfile.is_admin}`} profile={viewProfile} />
+            <SqlPage key={`${masqAs?.id ?? 'self'}-${viewProfile.is_admin}`} profile={viewProfile} theme={theme} />
           </div>
         )}
       </main>
