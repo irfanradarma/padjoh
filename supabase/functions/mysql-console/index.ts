@@ -81,6 +81,15 @@ Deno.serve(async req => {
     }
     connection = await connectWithRetry(connectionUrl)
 
+    const [databaseRows] = await connection.query('SHOW DATABASES')
+    const hidden = new Set(['information_schema', 'mysql', 'performance_schema', 'sys', 'test'])
+    const databases = (databaseRows as Record<string, string>[])
+      .map(row => Object.values(row)[0]).filter(name => !hidden.has(name) && name !== 'sql_lab')
+    if (action === 'databases') return json({ databases })
+    const database = String(body?.database || databases[0] || '')
+    if (!databases.includes(database)) return json({ error: 'Unknown or inaccessible classroom database.' }, 400)
+    await connection.changeUser({ database })
+
     if (action === 'schema') {
       const [tableRows] = await connection.query(`
         SELECT TABLE_NAME AS name, TABLE_ROWS AS rowCount
