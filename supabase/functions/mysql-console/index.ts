@@ -21,6 +21,8 @@ function isReadOnly(sql: string) {
   const clean = sql.replace(/^(?:\s|--[^\n\r]*(?:\r?\n|$)|\/\*[\s\S]*?\*\/)+/g, '').toUpperCase()
   return /^(SELECT|WITH|SHOW|DESCRIBE|DESC|EXPLAIN)\b/.test(clean)
     && !/\b(INTO\s+(?:OUTFILE|DUMPFILE)|FOR\s+UPDATE|LOCK\s+IN\s+SHARE\s+MODE|SLEEP\s*\(|BENCHMARK\s*\(|LOAD_FILE\s*\()/.test(clean)
+    && !/`?(MYSQL|INFORMATION_SCHEMA|PERFORMANCE_SCHEMA|SYS)`?\s*\./.test(clean)
+    && !/^SHOW\s+(?:DATABASES|SCHEMAS|GRANTS|PROCESSLIST|PRIVILEGES)\b/.test(clean)
 }
 
 function connectionOptions(connectionUrl: string) {
