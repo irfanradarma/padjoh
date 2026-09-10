@@ -1772,6 +1772,20 @@ body {
 .sql-context-menu { position:fixed; z-index:1000; min-width:190px; padding:5px; border:1px solid var(--border); border-radius:7px; background:var(--card); box-shadow:0 12px 35px rgba(0,0,0,.2); }
 .sql-context-menu button { display:block; width:100%; border:0; border-radius:4px; background:transparent; color:var(--text); text-align:left; padding:8px 10px; font-size:12px; cursor:pointer; }
 .sql-context-menu button:hover { background:var(--hover); }
+.sql-mode-tabs { display:flex; gap:4px; margin-bottom:10px; border-bottom:1px solid var(--border); }
+.sql-mode-tabs button { border:0; border-bottom:2px solid transparent; padding:9px 14px; background:transparent; color:var(--muted); font-weight:700; cursor:pointer; }
+.sql-mode-tabs button.active { color:var(--accent); border-bottom-color:var(--accent); }
+.sql-challenges { flex:1; min-height:0; overflow:auto; border:1px solid var(--border); border-radius:10px; background:var(--card); padding:18px; }
+.sql-challenge-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+.sql-challenge-head h3 { margin:0 0 4px; }.sql-challenge-head small{color:var(--muted)}
+.sql-assignment-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:14px; }
+.sql-assignment-cards article { border:1px solid var(--border); border-radius:9px; padding:16px; background:color-mix(in srgb,var(--card) 96%,var(--bg)); }
+.sql-assignment-cards article h3{margin:12px 0 7px}.sql-assignment-cards article p{min-height:42px;color:var(--muted);font-size:12px;line-height:1.55}
+.sql-assignment-card-top,.sql-card-actions,.sql-check-row { display:flex;align-items:center;gap:8px;justify-content:space-between }.sql-assignment-card-top span{font-size:9px;text-transform:uppercase;font-weight:800;padding:4px 7px;border-radius:10px;background:#fef3c7;color:#92400e}.sql-assignment-card-top span.published{background:#d1fae5;color:#047857}
+.sql-progress { height:6px;background:var(--border);border-radius:5px;overflow:hidden;margin:14px 0 6px}.sql-progress i{display:block;height:100%;background:var(--accent)}.sql-card-actions{justify-content:flex-start;margin-top:14px;flex-wrap:wrap}.btn-sm.danger{color:#dc2626}
+.sql-play-grid { display:grid;grid-template-columns:230px minmax(0,1fr);gap:14px;min-height:560px}.sql-task-list{border-right:1px solid var(--border);padding-right:10px}.sql-task-list button{width:100%;display:flex;gap:9px;align-items:center;border:0;border-radius:6px;padding:10px;background:transparent;color:var(--text);text-align:left;cursor:pointer}.sql-task-list button:hover,.sql-task-list button.active{background:var(--hover)}.sql-task-list button span{width:23px;height:23px;display:grid;place-items:center;border:1px solid var(--border);border-radius:50%;font-size:10px}.sql-task-list button.done span{background:#10b981;color:white;border-color:#10b981}.sql-task-work{min-width:0}.sql-task-prompt{border-bottom:1px solid var(--border);padding-bottom:12px}.sql-task-prompt p{font-size:13px;line-height:1.6}.sql-task-prompt code{color:var(--accent)}
+.sql-challenge-editor{height:230px;border:1px solid var(--border);margin:12px 0;overflow:auto}.sql-challenge-editor .cm-editor{height:100%;font-size:13px}.sql-check-row{justify-content:flex-end}.sql-check-row span{margin-right:auto;font-size:12px}.sql-check-row .pass{color:#059669;font-weight:700}.sql-check-row .feedback{color:#dc2626}.sql-challenge-result{height:240px;border:1px solid var(--border);margin-top:12px}
+.sql-admin-form{max-width:900px;display:flex;flex-direction:column;gap:10px}.sql-form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.sql-task-editor{border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}.sql-task-editor-title{display:flex;justify-content:space-between}.sql-task-editor-title button{border:0;background:transparent;color:#dc2626;cursor:pointer}.sql-code-input{font-family:Consolas,monospace;min-height:70px}.sql-monitor{max-width:760px!important}.sql-modal-close{float:right;border:0;background:transparent;font-size:20px;cursor:pointer;color:var(--muted)}
 .sql-editor-toolbar { border-bottom: 0; }
 .sql-run-btn { width: auto; padding: 6px 14px; font-size: 12px; }
 .sql-editor { resize: vertical; width: 100%; min-height: 140px; box-sizing: border-box; border: 0; border-block: 1px solid var(--border); outline: none; padding: 16px; background: #111827; color: #d1fae5; font: 13px/1.65 Consolas, 'Courier New', monospace; tab-size: 2; }
@@ -1795,4 +1809,5 @@ body {
   .sql-schema-panel { border-right: 0; border-bottom: 1px solid var(--border); max-height: 210px; overflow: auto; }
   .sql-schema-body { max-height: 160px; }
   .sql-main-panel { grid-template-rows: 43px 190px 28px 340px; }
+  .sql-play-grid{grid-template-columns:1fr}.sql-task-list{border-right:0;border-bottom:1px solid var(--border);display:flex;overflow:auto}.sql-task-list button{min-width:180px}.sql-form-row{grid-template-columns:1fr}.sql-challenges{padding:11px}
 }

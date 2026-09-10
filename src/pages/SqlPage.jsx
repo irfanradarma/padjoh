@@ -6,6 +6,7 @@ import { indentWithTab } from "@codemirror/commands";
 import { keymap, EditorView } from "@codemirror/view";
 import * as XLSX from "xlsx";
 import { supabase } from "../supabaseClient";
+import SqlChallenges from "./SqlChallenges";
 const mk = (n, a, q) => ({
   id: crypto.randomUUID(),
   title: `Query ${n}`,
@@ -28,6 +29,7 @@ export default function SqlPage({ profile, theme }) {
     [sw, setSw] = useState(240),
     [eh, setEh] = useState(255),
     [menu, setMenu] = useState(null);
+  const [mode, setMode] = useState("assignments");
   const tab = tabs.find((x) => x.id === active) || tabs[0],
     query = tab?.query || "";
   const call = useCallback(async (body) => {
@@ -247,9 +249,29 @@ export default function SqlPage({ profile, theme }) {
           {admin ? "ADMIN" : "READ ONLY"}
         </span>
       </div>
+      <div className="sql-mode-tabs">
+        <button
+          className={mode === "assignments" ? "active" : ""}
+          onClick={() => setMode("assignments")}
+        >
+          Assignments
+        </button>
+        <button
+          className={mode === "workspace" ? "active" : ""}
+          onClick={() => setMode("workspace")}
+        >
+          Workspace
+        </button>
+      </div>
+      {mode === "assignments" && (
+        <SqlChallenges profile={profile} theme={theme} databases={dbs} />
+      )}
       <div
         className="sql-workbench"
-        style={{ gridTemplateColumns: `${sw}px 5px minmax(0,1fr)` }}
+        style={{
+          gridTemplateColumns: `${sw}px 5px minmax(0,1fr)`,
+          display: mode === "workspace" ? "grid" : "none",
+        }}
       >
         <aside className="sql-schema-panel">
           <div className="sql-panel-title">
