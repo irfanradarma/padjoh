@@ -35,7 +35,18 @@ function connectionOptions(connectionUrl: string) {
     database: url.pathname.slice(1),
     ssl: { rejectUnauthorized: true },
     multipleStatements: false,
-    connectTimeout: 8_000,
+    connectTimeout: 25_000,
+  }
+}
+
+async function connectWithRetry(connectionUrl: string) {
+  try {
+    return await mysql.createConnection(connectionOptions(connectionUrl))
+  } catch (error) {
+    const code = (error as { code?: string })?.code
+    if (code !== 'ETIMEDOUT' && code !== 'ECONNRESET' && code !== 'ECONNREFUSED') throw error
+    await new Promise(resolve => setTimeout(resolve, 750))
+    return await mysql.createConnection(connectionOptions(connectionUrl))
   }
 }
 
@@ -68,7 +79,7 @@ Deno.serve(async req => {
     if (!connectionUrl) {
       throw new Error(`${isAdmin ? 'MYSQL_ADMIN_URL' : 'MYSQL_STUDENT_URL'} is not configured on the server.`)
     }
-    connection = await mysql.createConnection(connectionOptions(connectionUrl))
+    connection = await connectWithRetry(connectionUrl)
 
     if (action === 'schema') {
       const [tableRows] = await connection.query(`
