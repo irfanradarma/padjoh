@@ -29,7 +29,13 @@ export default function SqlPage({ profile, theme }) {
     [sw, setSw] = useState(240),
     [eh, setEh] = useState(255),
     [menu, setMenu] = useState(null);
-  const [mode, setMode] = useState("assignments");
+  const [assignments, setAssignments] = useState([]);
+  const [assignment, setAssignment] = useState(null);
+  const [taskProgress, setTaskProgress] = useState([]);
+  const [currentTask, setCurrentTask] = useState(null);
+  const [challengeMessage, setChallengeMessage] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
   const tab = tabs.find((x) => x.id === active) || tabs[0],
     query = tab?.query || "";
   const call = useCallback(async (body) => {
@@ -47,6 +53,31 @@ export default function SqlPage({ profile, theme }) {
     if (data?.error) throw Error(data.error);
     return data;
   }, []);
+  const challengeCall = useCallback(async (body) => {
+    const { data, error } = await supabase.functions.invoke("sql-challenges", {
+      body,
+    });
+    if (error) {
+      let message = error.message;
+      try {
+        message = (await error.context?.json())?.error || message;
+      } catch {}
+      throw Error(message);
+    }
+    if (data?.error) throw Error(data.error);
+    return data;
+  }, []);
+  const loadAssignments = useCallback(async () => {
+    try {
+      const data = await challengeCall({ action: "list" });
+      setAssignments(data.assignments || []);
+    } catch (e) {
+      setChallengeMessage(e.message);
+    }
+  }, [challengeCall]);
+  useEffect(() => {
+    loadAssignments();
+  }, [loadAssignments]);
   const load = useCallback(async () => {
     if (!db) return;
     setLoading(true);
@@ -235,6 +266,63 @@ export default function SqlPage({ profile, theme }) {
         URL.revokeObjectURL(u);
       }
     };
+  async function openAssignment(id) {
+    if (!id) {
+      setAssignment(null);
+      setCurrentTask(null);
+      return;
+    }
+    try {
+      const data = await challengeCall({ action: "get", id });
+      setAssignment(data.assignment);
+      setTaskProgress(data.progress || []);
+      setDb(data.assignment.database_name);
+      const next =
+        data.assignment.sql_assignment_tasks.find(
+          (t) => !(data.progress || []).some((p) => p.task_id === t.id),
+        ) || data.assignment.sql_assignment_tasks[0];
+      chooseTask(next, data.progress || []);
+    } catch (e) {
+      setChallengeMessage(e.message);
+    }
+  }
+  function chooseTask(task, saved = taskProgress) {
+    if (!task) return;
+    setCurrentTask(task);
+    setChallengeMessage("");
+    setResult(null);
+    update(
+      saved.find((p) => p.task_id === task.id)?.completed_sql ||
+        task.starter_sql ||
+        "",
+    );
+  }
+  async function checkAnswer() {
+    if (!currentTask || !query.trim()) return;
+    setChecking(true);
+    setChallengeMessage("");
+    try {
+      const data = await challengeCall({
+        action: "grade",
+        task_id: currentTask.id,
+        sql: query,
+      });
+      setResult(data.result);
+      setChallengeMessage(data.feedback);
+      if (data.passed) {
+        setTaskProgress((items) =>
+          items.some((p) => p.task_id === currentTask.id)
+            ? items
+            : [...items, { task_id: currentTask.id, completed_sql: query }],
+        );
+        loadAssignments();
+      }
+    } catch (e) {
+      setChallengeMessage(e.message);
+    } finally {
+      setChecking(false);
+    }
+  }
   return (
     <div className="page-content sql-page">
       <div className="page-header sql-page-header">
@@ -245,35 +333,62 @@ export default function SqlPage({ profile, theme }) {
             {admin ? "administrator access" : "read-only student access"}
           </p>
         </div>
-        <span className={"sql-role-badge " + (admin ? "admin" : "")}>
-          {admin ? "ADMIN" : "READ ONLY"}
-        </span>
+        <div className="sql-header-actions">
+          {admin && (
+            <button className="btn-sm" onClick={() => setManagerOpen(true)}>
+              Manage assignments
+            </button>
+          )}
+          <span className={"sql-role-badge " + (admin ? "admin" : "")}>
+            {admin ? "ADMIN" : "READ ONLY"}
+          </span>
+        </div>
       </div>
-      <div className="sql-mode-tabs">
-        <button
-          className={mode === "assignments" ? "active" : ""}
-          onClick={() => setMode("assignments")}
-        >
-          Assignments
-        </button>
-        <button
-          className={mode === "workspace" ? "active" : ""}
-          onClick={() => setMode("workspace")}
-        >
-          Workspace
-        </button>
-      </div>
-      {mode === "assignments" && (
-        <SqlChallenges profile={profile} theme={theme} databases={dbs} />
-      )}
       <div
         className="sql-workbench"
-        style={{
-          gridTemplateColumns: `${sw}px 5px minmax(0,1fr)`,
-          display: mode === "workspace" ? "grid" : "none",
-        }}
+        style={{ gridTemplateColumns: `${sw}px 5px minmax(0,1fr)` }}
       >
         <aside className="sql-schema-panel">
+          <div className="sql-assignment-dock">
+            <label>Assignment</label>
+            <select
+              value={assignment?.id || ""}
+              onChange={(e) => openAssignment(e.target.value)}
+            >
+              <option value="">Free workspace</option>
+              {assignments.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.title} ({a.completed_count}/{a.task_count})
+                </option>
+              ))}
+            </select>
+            {assignment && (
+              <>
+                <div className="sql-dock-progress">
+                  <i
+                    style={{
+                      width: `${assignment.sql_assignment_tasks.length ? (taskProgress.length / assignment.sql_assignment_tasks.length) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <div className="sql-dock-tasks">
+                  {assignment.sql_assignment_tasks.map((t, i) => {
+                    const done = taskProgress.some((p) => p.task_id === t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        className={`${currentTask?.id === t.id ? "active" : ""} ${done ? "done" : ""}`}
+                        onClick={() => chooseTask(t)}
+                      >
+                        <span>{done ? "✓" : i + 1}</span>
+                        <b>{t.title}</b>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
           <div className="sql-panel-title">
             <div className="sql-db-picker">
               <label>Database</label>
@@ -362,6 +477,15 @@ export default function SqlPage({ profile, theme }) {
             <button className="sql-add-tab" onClick={() => add()}>
               ＋
             </button>
+            {currentTask && (
+              <button
+                className="btn sql-check-btn"
+                onClick={checkAnswer}
+                disabled={checking || !query.trim()}
+              >
+                {checking ? "Checking…" : "✓ Check answer"}
+              </button>
+            )}
             <button
               className="btn btn-primary sql-run-btn"
               onClick={() => run(query)}
@@ -370,7 +494,30 @@ export default function SqlPage({ profile, theme }) {
               {running ? "Running…" : "▶ Run"}
             </button>
           </div>
-          <div className="sql-editor-wrap">
+          <div className={`sql-editor-wrap ${currentTask ? "has-task" : ""}`}>
+            {currentTask && (
+              <div className="sql-inline-task">
+                <div>
+                  <span>Task {currentTask.position}</span>
+                  <h3>{currentTask.title}</h3>
+                </div>
+                <p>{currentTask.instruction}</p>
+                {currentTask.sample_output && (
+                  <code>{currentTask.sample_output}</code>
+                )}
+                {challengeMessage && (
+                  <strong
+                    className={
+                      challengeMessage.startsWith("Correct")
+                        ? "pass"
+                        : "feedback"
+                    }
+                  >
+                    {challengeMessage}
+                  </strong>
+                )}
+              </div>
+            )}
             <CodeMirror
               value={query}
               onChange={update}
@@ -474,6 +621,22 @@ export default function SqlPage({ profile, theme }) {
           <button onClick={() => preview(menu.t, true)}>
             Open in new query tab
           </button>
+        </div>
+      )}
+      {managerOpen && (
+        <div className="pw-overlay sql-manager-overlay">
+          <div className="sql-manager-modal">
+            <button
+              className="sql-modal-close"
+              onClick={() => {
+                setManagerOpen(false);
+                loadAssignments();
+              }}
+            >
+              ×
+            </button>
+            <SqlChallenges profile={profile} theme={theme} databases={dbs} />
+          </div>
         </div>
       )}
     </div>
