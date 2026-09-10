@@ -77,3 +77,35 @@ Or edit the table directly in **Table Editor → npm_whitelist**.
 If you change `npm.app`, update it in **both** `sql/setup.sql`
 (`hook_check_npm_whitelist`) and `VITE_NPM_EMAIL_DOMAIN`. Use a normal
 `name.tld` shape so Supabase accepts the email format.
+
+## SQL Lab (MySQL)
+
+The **SQL** menu provides a shared classroom MySQL workbench. Administrators can
+create and modify the database; students receive read-only query access. MySQL
+credentials are kept in Supabase Edge Function secrets and are never sent to the
+browser.
+
+Create two MySQL users for the same classroom database. Give the admin user the
+DDL/DML privileges you need, and restrict the student user at the database level:
+
+```sql
+CREATE USER 'sql_lab_admin'@'%' IDENTIFIED BY 'use-a-strong-password';
+GRANT ALL PRIVILEGES ON classroom.* TO 'sql_lab_admin'@'%';
+
+CREATE USER 'sql_lab_student'@'%' IDENTIFIED BY 'use-another-strong-password';
+GRANT SELECT, SHOW VIEW ON classroom.* TO 'sql_lab_student'@'%';
+FLUSH PRIVILEGES;
+```
+
+Then configure and deploy the function (URL-encode special characters in the
+passwords):
+
+```bash
+supabase secrets set MYSQL_ADMIN_URL="mysql://sql_lab_admin:password@host:3306/classroom"
+supabase secrets set MYSQL_STUDENT_URL="mysql://sql_lab_student:password@host:3306/classroom"
+supabase functions deploy mysql-console
+```
+
+The MySQL server must accept TLS connections from Supabase's Edge Function
+network. Keep `MYSQL_STUDENT_URL` read-only even though the function also blocks
+write statements, providing defense in depth.

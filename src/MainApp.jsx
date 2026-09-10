@@ -10,10 +10,11 @@ import LoginLogsPage from './pages/LoginLogsPage'
 import DeadlinePage from './pages/DeadlinePage'
 import QuizManagementPage from './pages/QuizManagementPage'
 import VibersPage from './pages/VibersPage'
+import SqlPage from './pages/SqlPage'
 import AppLogo from './components/AppLogo'
 
 // ── Hash routing ──────────────────────────────────────────────
-const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management', 'login-logs', 'quiz-mgmt', 'vibers']
+const VALID_PAGES = ['dashboard', 'mindmap', 'forum', 'deadline', 'user-management', 'login-logs', 'quiz-mgmt', 'vibers', 'sql']
 
 function hashToPage(hash) {
   const h = (hash || '').replace(/^#\/?/, '')
@@ -44,6 +45,7 @@ const PAGE_LABELS = {
   'login-logs':       'Log Login',
   'quiz-mgmt':        'Manajemen Kuis',
   'vibers':           'Vibers',
+  sql:                'SQL Lab',
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -407,6 +409,15 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
             {!profile.is_admin && vibersNotifCount > 0 && <span className="nav-notif-dot" />}
           </div>
 
+          <div
+            className={`nav-item${page.type === 'sql' ? ' active' : ''}`}
+            title="SQL Lab"
+            onClick={() => navigate({ type: 'sql' })}
+          >
+            <span className="nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12v7c0 1.66 3.58 3 8 3s8-1.34 8-3v-7"/></svg></span>
+            <span className="nav-label">SQL</span>
+          </div>
+
           {profile.is_admin && (
             <div
               className={`nav-item${page.type === 'user-management' ? ' active' : ''}`}
@@ -546,6 +557,11 @@ export default function MainApp({ session, profile, theme, toggleTheme }) {
         {visited.has('vibers') && (
           <div style={{ display: page.type === 'vibers' ? '' : 'none' }}>
             <VibersPage key={masqAs?.id ?? 'self'} profile={viewProfile} />
+          </div>
+        )}
+        {visited.has('sql') && (
+          <div style={{ display: page.type === 'sql' ? '' : 'none' }}>
+            <SqlPage key={`${masqAs?.id ?? 'self'}-${viewProfile.is_admin}`} profile={viewProfile} />
           </div>
         )}
       </main>
