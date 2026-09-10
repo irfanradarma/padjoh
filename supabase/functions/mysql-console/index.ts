@@ -48,12 +48,13 @@ Deno.serve(async req => {
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) return json({ error: 'You must be signed in.' }, 401)
 
+    const token = authHeader.replace(/^Bearer\s+/i, '')
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } },
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false, autoRefreshToken: false } },
     )
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
     if (userError || !user) return json({ error: 'Invalid or expired session.' }, 401)
 
     const { data: profile, error: profileError } = await supabase
