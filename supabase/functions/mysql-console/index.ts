@@ -23,6 +23,20 @@ function isReadOnly(sql: string) {
     && !/\b(INTO\s+(?:OUTFILE|DUMPFILE)|FOR\s+UPDATE|LOCK\s+IN\s+SHARE\s+MODE|SLEEP\s*\(|BENCHMARK\s*\(|LOAD_FILE\s*\()/.test(clean)
 }
 
+function connectionOptions(connectionUrl: string) {
+  const url = new URL(connectionUrl)
+  return {
+    host: url.hostname,
+    port: Number(url.port || 3306),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.slice(1),
+    ssl: { rejectUnauthorized: true },
+    multipleStatements: false,
+    connectTimeout: 8_000,
+  }
+}
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
@@ -51,7 +65,7 @@ Deno.serve(async req => {
     if (!connectionUrl) {
       throw new Error(`${isAdmin ? 'MYSQL_ADMIN_URL' : 'MYSQL_STUDENT_URL'} is not configured on the server.`)
     }
-    connection = await mysql.createConnection({ uri: connectionUrl, multipleStatements: false, connectTimeout: 8000 })
+    connection = await mysql.createConnection(connectionOptions(connectionUrl))
 
     if (action === 'schema') {
       const [tableRows] = await connection.query(`
