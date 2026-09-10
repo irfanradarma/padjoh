@@ -1,167 +1,31 @@
-import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../supabaseClient'
-
-const ADMIN_STARTER = `-- Admin: create or prepare the classroom database
-SHOW TABLES;`
-const STUDENT_STARTER = `-- Explore the classroom data with read-only MySQL queries
-SHOW TABLES;`
-
-function displayValue(value) {
-  if (value === null) return <span className="sql-null">NULL</span>
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
-}
-
-export default function SqlPage({ profile }) {
-  const isAdmin = Boolean(profile?.is_admin)
-  const [query, setQuery] = useState(isAdmin ? ADMIN_STARTER : STUDENT_STARTER)
-  const [schema, setSchema] = useState([])
-  const [expanded, setExpanded] = useState({})
-  const [result, setResult] = useState(null)
-  const [error, setError] = useState('')
-  const [running, setRunning] = useState(false)
-  const [schemaLoading, setSchemaLoading] = useState(true)
-
-  async function callSql(body) {
-    const { data, error: invokeError } = await supabase.functions.invoke('mysql-console', { body })
-    if (invokeError) {
-      let message = invokeError.message
-      try {
-        const context = await invokeError.context?.json()
-        if (context?.error) message = context.error
-      } catch { /* keep the invocation error */ }
-      throw new Error(message)
-    }
-    if (data?.error) throw new Error(data.error)
-    return data
-  }
-
-  async function loadSchema() {
-    setSchemaLoading(true)
-    setError('')
-    try {
-      const data = await callSql({ action: 'schema' })
-      setSchema(data.tables ?? [])
-    } catch (err) {
-      setError(err.message)
-      setSchema([])
-    } finally {
-      setSchemaLoading(false)
-    }
-  }
-
-  useEffect(() => { loadSchema() }, [isAdmin])
-
-  async function runQuery() {
-    if (!query.trim() || running) return
-    setRunning(true)
-    setError('')
-    setResult(null)
-    const started = performance.now()
-    try {
-      const data = await callSql({ action: 'query', sql: query })
-      setResult({ ...data, clientDurationMs: Math.round(performance.now() - started) })
-      if (data.schemaChanged) loadSchema()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setRunning(false)
-    }
-  }
-
-  function useTable(table) {
-    const escaped = `\`${table.replaceAll('`', '``')}\``
-    setQuery(`SELECT *\nFROM ${escaped}\nLIMIT 100;`)
-  }
-
-  const columns = useMemo(() => {
-    if (result?.columns?.length) return result.columns
-    return result?.rows?.[0] ? Object.keys(result.rows[0]) : []
-  }, [result])
-
-  return (
-    <div className="page-content sql-page">
-      <div className="page-header sql-page-header">
-        <div>
-          <h2>SQL Lab</h2>
-          <p>MySQL classroom database · {isAdmin ? 'administrator access' : 'read-only student access'}</p>
-        </div>
-        <span className={`sql-role-badge ${isAdmin ? 'admin' : ''}`}>{isAdmin ? 'ADMIN' : 'READ ONLY'}</span>
-      </div>
-
-      <div className="sql-workbench">
-        <aside className="sql-schema-panel">
-          <div className="sql-panel-title">
-            <span>Database</span>
-            <button onClick={loadSchema} disabled={schemaLoading} title="Refresh schema">↻</button>
-          </div>
-          <div className="sql-schema-body">
-            {schemaLoading ? <div className="sql-muted">Loading schema…</div> : schema.length === 0 ? (
-              <div className="sql-muted">No tables found.</div>
-            ) : schema.map(table => (
-              <div className="sql-table-node" key={table.name}>
-                <button className="sql-table-name" onClick={() => setExpanded(x => ({ ...x, [table.name]: !x[table.name] }))}>
-                  <span>{expanded[table.name] ? '▾' : '▸'}</span>
-                  <span className="sql-table-icon">▦</span>
-                  <span>{table.name}</span>
-                  <small>{table.rowCount ?? '—'}</small>
-                </button>
-                {expanded[table.name] && (
-                  <div className="sql-column-list">
-                    {(table.columns ?? []).map(col => (
-                      <div key={col.name} className="sql-column" title={`${col.type}${col.nullable ? ' NULL' : ' NOT NULL'}`}>
-                        <span>{col.key === 'PRI' ? '🔑' : '·'}</span><b>{col.name}</b><small>{col.type}</small>
-                      </div>
-                    ))}
-                    <button className="sql-preview-btn" onClick={() => useTable(table.name)}>Preview rows</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        <section className="sql-main-panel">
-          <div className="sql-editor-toolbar">
-            <span>Query editor</span>
-            <button className="btn btn-primary sql-run-btn" onClick={runQuery} disabled={running || !query.trim()}>
-              {running ? 'Running…' : '▶ Run'}
-            </button>
-          </div>
-          <textarea
-            className="sql-editor"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery() } }}
-            spellCheck="false"
-            aria-label="SQL query editor"
-          />
-          <div className="sql-editor-help">Ctrl + Enter to run · One statement at a time{!isAdmin && ' · SELECT, WITH, SHOW, DESCRIBE, and EXPLAIN only'}</div>
-
-          <div className="sql-results-panel">
-            <div className="sql-panel-title">
-              <span>Results</span>
-              {result && <small>{result.rowCount} row{result.rowCount === 1 ? '' : 's'} · {result.durationMs ?? result.clientDurationMs} ms</small>}
-            </div>
-            {error ? (
-              <div className="sql-error"><strong>Query failed</strong><span>{error}</span></div>
-            ) : !result ? (
-              <div className="sql-empty">Run a query to see its results.</div>
-            ) : result.rows?.length ? (
-              <div className="sql-grid-wrap">
-                <table className="sql-grid">
-                  <thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead>
-                  <tbody>{result.rows.map((row, i) => (
-                    <tr key={i}>{columns.map(c => <td key={c}>{displayValue(row[c])}</td>)}</tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="sql-success">✓ {result.message || 'Query executed successfully.'}</div>
-            )}
-          </div>
-        </section>
-      </div>
-    </div>
-  )
+import {useCallback,useEffect,useMemo,useRef,useState} from'react'
+import CodeMirror from'@uiw/react-codemirror'
+import{sql,MySQL}from'@codemirror/lang-sql'
+import{autocompletion}from'@codemirror/autocomplete'
+import{indentWithTab}from'@codemirror/commands'
+import{keymap,EditorView}from'@codemirror/view'
+import*as XLSX from'xlsx'
+import{supabase}from'../supabaseClient'
+const mk=(n,a,q)=>({id:crypto.randomUUID(),title:`Query ${n}`,query:q||`-- ${a?'Admin':'Read-only student'} workspace\nSHOW TABLES;`})
+const esc=n=>`\`${n.replaceAll('`','``')}\``
+export default function SqlPage({profile}){
+ const admin=!!profile?.is_admin,first=useRef(mk(1,admin)),[tabs,setTabs]=useState([first.current]),[active,setActive]=useState(first.current.id),[schema,setSchema]=useState([]),[expanded,setExpanded]=useState({}),[result,setResult]=useState(null),[error,setError]=useState(''),[running,setRunning]=useState(false),[loading,setLoading]=useState(true),[sw,setSw]=useState(240),[eh,setEh]=useState(255),[menu,setMenu]=useState(null)
+ const tab=tabs.find(x=>x.id===active)||tabs[0],query=tab?.query||''
+ const call=useCallback(async body=>{const{data,error:e}=await supabase.functions.invoke('mysql-console',{body});if(e){let m=e.message;try{m=(await e.context?.json())?.error||m}catch{}throw Error(m)}if(data?.error)throw Error(data.error);return data},[])
+ const load=useCallback(async()=>{setLoading(true);setError('');try{setSchema((await call({action:'schema'})).tables||[])}catch(e){setError(e.message);setSchema([])}finally{setLoading(false)}},[call])
+ useEffect(()=>{load()},[load]);useEffect(()=>{const f=()=>setMenu(null);addEventListener('click',f);return()=>removeEventListener('click',f)},[])
+ const run=useCallback(async text=>{text=text.trim();if(!text||running)return;setRunning(true);setError('');setResult(null);let t=performance.now();try{let d=await call({action:'query',sql:text});setResult({...d,clientDurationMs:Math.round(performance.now()-t)});if(d.schemaChanged)load()}catch(e){setError(e.message)}finally{setRunning(false)}},[call,load,running])
+ const fromView=useCallback((v,sel)=>{let r=v.state.selection.main,s=v.state.sliceDoc(r.from,r.to);run(sel&&s.trim()?s:v.state.doc.toString());return true},[run])
+ const complete=useCallback(c=>{let pre=c.state.sliceDoc(0,c.pos),names=[...pre.matchAll(/\b(?:FROM|JOIN)\s+`?([\w$]+)`?/gi)].map(x=>x[1].toLowerCase()),word=c.matchBefore(/[\w$]*/);if(!c.explicit&&!word?.text)return null;let options=schema.filter(t=>names.includes(t.name.toLowerCase())).flatMap(t=>t.columns.map(x=>({label:x.name,type:'property',detail:`${t.name} · ${x.type}`,boost:20})));return options.length?{from:word.from,options,validFor:/^[\w$]*$/}:null},[schema])
+ const extensions=useMemo(()=>[sql({dialect:MySQL,schema:Object.fromEntries(schema.map(t=>[t.name,t.columns.map(c=>c.name)]))}),autocompletion({override:[complete],activateOnTyping:true}),keymap.of([{key:'Mod-Enter',run:v=>fromView(v,false)},{key:'Mod-Shift-Enter',run:v=>fromView(v,true)},indentWithTab]),EditorView.theme({'&':{height:'100%'},'.cm-scroller':{overflow:'auto'}})],[schema,complete,fromView])
+ const update=q=>setTabs(a=>a.map(t=>t.id===active?{...t,query:q}:t)),add=q=>{let t=mk(tabs.length+1,admin,q);setTabs(a=>[...a,t]);setActive(t.id)},close=(e,id)=>{e.stopPropagation();if(tabs.length===1){update('');return}let i=tabs.findIndex(t=>t.id===id),a=tabs.filter(t=>t.id!==id);setTabs(a);if(active===id)setActive(a[Math.max(0,i-1)].id)}
+ const preview=(name,fresh=false)=>{let q=`SELECT *\nFROM ${esc(name)}\nLIMIT 100;`;fresh?add(q):update(q);setMenu(null)}
+ const resize=(kind,e)=>{e.preventDefault();let start=kind==='s'?sw:eh,origin=kind==='s'?e.clientX:e.clientY,move=x=>{let d=(kind==='s'?x.clientX:x.clientY)-origin;kind==='s'?setSw(Math.max(170,Math.min(480,start+d))):setEh(Math.max(150,Math.min(560,start+d)))},stop=()=>{removeEventListener('pointermove',move);removeEventListener('pointerup',stop)};addEventListener('pointermove',move);addEventListener('pointerup',stop)}
+ const cols=useMemo(()=>result?.columns?.length?result.columns:Object.keys(result?.rows?.[0]||{}),[result]),exportAs=f=>{let sh=XLSX.utils.json_to_sheet(result.rows,{header:cols});if(f==='xlsx'){let b=XLSX.utils.book_new();XLSX.utils.book_append_sheet(b,sh,'Results');XLSX.writeFile(b,`sql-results-${Date.now()}.xlsx`)}else{let u=URL.createObjectURL(new Blob(['\ufeff'+XLSX.utils.sheet_to_csv(sh)],{type:'text/csv'})),a=document.createElement('a');a.href=u;a.download=`sql-results-${Date.now()}.csv`;a.click();URL.revokeObjectURL(u)}}
+ return <div className="page-content sql-page"><div className="page-header sql-page-header"><div><h2>SQL Lab</h2><p>MySQL classroom database · {admin?'administrator access':'read-only student access'}</p></div><span className={'sql-role-badge '+(admin?'admin':'')}>{admin?'ADMIN':'READ ONLY'}</span></div>
+ <div className="sql-workbench" style={{gridTemplateColumns:`${sw}px 5px minmax(0,1fr)`}}><aside className="sql-schema-panel"><div className="sql-panel-title"><span>Database</span><button onClick={load}>↻</button></div><div className="sql-schema-body">{loading?<div className="sql-muted">Loading schema…</div>:schema.map(t=><div key={t.name} onContextMenu={e=>{e.preventDefault();setMenu({x:e.clientX,y:e.clientY,t:t.name})}}><button className="sql-table-name" onClick={()=>setExpanded(x=>({...x,[t.name]:!x[t.name]}))}><span>{expanded[t.name]?'▾':'▸'}</span><span className="sql-table-icon">▦</span><span>{t.name}</span><small>{t.rowCount??'—'}</small></button>{expanded[t.name]&&<div className="sql-column-list">{t.columns.map(c=><div className="sql-column" key={c.name}><span>{c.key==='PRI'?'◆':'·'}</span><b>{c.name}</b><small>{c.type}</small></div>)}<button className="sql-preview-btn" onClick={()=>preview(t.name)}>Preview rows</button></div>}</div>)}</div></aside><div className="sql-resizer vertical" onPointerDown={e=>resize('s',e)}/>
+ <section className="sql-main-panel" style={{gridTemplateRows:`40px ${eh}px 5px minmax(220px,1fr)`}}><div className="sql-query-tabs"><div className="sql-tabs-scroll">{tabs.map(t=><button key={t.id} className={'sql-query-tab '+(t.id===active?'active':'')} onClick={()=>setActive(t.id)}>{t.title}<i onClick={e=>close(e,t.id)}>×</i></button>)}</div><button className="sql-add-tab" onClick={()=>add()}>＋</button><button className="btn btn-primary sql-run-btn" onClick={()=>run(query)} disabled={running}>{running?'Running…':'▶ Run'}</button></div>
+ <div className="sql-editor-wrap"><CodeMirror value={query} onChange={update} extensions={extensions} basicSetup={{lineNumbers:true,highlightActiveLineGutter:true,foldGutter:true,bracketMatching:true,closeBrackets:true,highlightActiveLine:true,autocompletion:false}}/><div className="sql-editor-help">Ctrl+Enter: run tab · Ctrl+Shift+Enter: run selection · Tab: indent</div></div><div className="sql-resizer horizontal" onPointerDown={e=>resize('e',e)}/>
+ <div className="sql-results-panel"><div className="sql-panel-title"><span>Results</span><div className="sql-results-actions">{result&&<small>{result.rowCount} rows · {result.durationMs??result.clientDurationMs} ms</small>}<button disabled={!result?.rows?.length} onClick={()=>exportAs('csv')}>CSV</button><button disabled={!result?.rows?.length} onClick={()=>exportAs('xlsx')}>XLSX</button></div></div>{error?<div className="sql-error"><b>Query failed</b><span>{error}</span></div>:!result?<div className="sql-empty">Run a query to see its results.</div>:result.rows?.length?<div className="sql-grid-wrap"><table className="sql-grid"><thead><tr><th>#</th>{cols.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{result.rows.map((r,i)=><tr key={i}><td className="sql-row-num">{i+1}</td>{cols.map(c=><td key={c}>{r[c]===null?<span className="sql-null">NULL</span>:typeof r[c]==='object'?JSON.stringify(r[c]):String(r[c])}</td>)}</tr>)}</tbody></table></div>:<div className="sql-success">✓ {result.message||'Query executed.'}</div>}</div></section></div>
+ {menu&&<div className="sql-context-menu" style={{left:menu.x,top:menu.y}} onClick={e=>e.stopPropagation()}><button onClick={()=>preview(menu.t)}>SELECT * LIMIT 100</button><button onClick={()=>preview(menu.t,true)}>Open in new query tab</button></div>}</div>
 }
