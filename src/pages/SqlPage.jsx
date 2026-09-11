@@ -289,6 +289,7 @@ export default function SqlPage({ profile, theme }) {
   function chooseTask(task, saved = taskProgress) {
     if (!task) return;
     setCurrentTask(task);
+    if (task.database_name) setDb(task.database_name);
     setChallengeMessage("");
     setResult(null);
     update(

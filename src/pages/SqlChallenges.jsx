@@ -9,6 +9,7 @@ const blank = () => ({
   sample_output: "",
   solution_sql: "",
   order_matters: false,
+  database_name: "",
 });
 export default function SqlChallenges({ profile, theme, databases }) {
   const admin = !!profile.is_admin,
@@ -219,6 +220,15 @@ export default function SqlChallenges({ profile, theme, databases }) {
                 value={t.title}
                 onChange={(e) => setT(i, "title", e.target.value)}
               />
+              <select
+                className="input"
+                value={t.database_name || editing.assignment.database_name}
+                onChange={(e) => setT(i, "database_name", e.target.value)}
+              >
+                {databases.map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
+              </select>
               <textarea
                 className="input"
                 placeholder="Instructions"
