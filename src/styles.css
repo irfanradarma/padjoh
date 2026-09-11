@@ -1813,3 +1813,37 @@ body {
   .sql-main-panel { grid-template-rows: 43px 190px 28px 340px; }
   .sql-play-grid{grid-template-columns:1fr}.sql-task-list{border-right:0;border-bottom:1px solid var(--border);display:flex;overflow:auto}.sql-task-list button{min-width:180px}.sql-form-row{grid-template-columns:1fr}.sql-challenges{padding:11px}
 }
+
+/* SQL assignment progress dashboard */
+.sql-progress-modal { width:min(1180px,96vw); height:min(820px,94vh); box-sizing:border-box; background:var(--card); border-radius:12px; padding:20px; overflow:hidden; box-shadow:0 24px 70px rgba(0,0,0,.3); }
+.sql-progress-page { height:100%; min-height:0; display:flex; flex-direction:column; color:var(--text); }
+.sql-progress-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.sql-progress-header h2 { margin:0 0 5px; }
+.sql-progress-header p { margin:0; color:var(--muted); font-size:12px; }
+.sql-progress-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.sql-progress-toolbar select { min-width:260px; border:1px solid var(--border); border-radius:6px; padding:9px; background:var(--card); color:var(--text); }
+.sql-progress-toolbar .input { max-width:340px; }
+.sql-progress-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+.sql-progress-summary article { display:flex; flex-direction:column; gap:3px; padding:14px; border:1px solid var(--border); border-radius:9px; background:color-mix(in srgb,var(--card) 96%,var(--bg)); }
+.sql-progress-summary b { font-size:23px; }
+.sql-progress-summary span { color:var(--muted); font-size:11px; }
+.sql-progress-summary .green b { color:#059669; }
+.sql-progress-summary .blue b { color:#2563eb; }
+.sql-progress-table-wrap { flex:1; min-height:0; overflow:auto; border:1px solid var(--border); border-radius:8px; }
+.sql-progress-table { min-width:850px; }
+.sql-progress-table td { height:35px; }
+.sql-student-progress { display:flex; align-items:center; gap:9px; }
+.sql-student-progress>div { width:95px; height:6px; overflow:hidden; background:var(--border); border-radius:5px; }
+.sql-student-progress i { display:block; height:100%; background:#10b981; border-radius:5px; }
+.sql-student-progress span { font-size:10px; color:var(--muted); }
+.sql-student-status { display:inline-flex; padding:4px 8px; border-radius:999px; font-size:9px; font-weight:800; }
+.sql-student-status.complete { color:#047857; background:#d1fae5; }
+.sql-student-status.in-progress { color:#1d4ed8; background:#dbeafe; }
+.sql-student-status.not-started { color:var(--muted); background:var(--hover); }
+
+@media (max-width: 768px) {
+  .sql-progress-modal { height:95vh; padding:13px; }
+  .sql-progress-toolbar { align-items:stretch; flex-direction:column; }
+  .sql-progress-toolbar select, .sql-progress-toolbar .input { width:100%; max-width:none; }
+  .sql-progress-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}

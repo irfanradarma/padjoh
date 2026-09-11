@@ -7,6 +7,7 @@ import { keymap, EditorView } from "@codemirror/view";
 import * as XLSX from "xlsx";
 import { supabase } from "../supabaseClient";
 import SqlChallenges from "./SqlChallenges";
+import SqlProgressDashboard from "./SqlProgressDashboard";
 const mk = (n, a, q) => ({
   id: crypto.randomUUID(),
   title: `Query ${n}`,
@@ -36,6 +37,7 @@ export default function SqlPage({ profile, theme }) {
   const [challengeMessage, setChallengeMessage] = useState("");
   const [checking, setChecking] = useState(false);
   const [managerOpen, setManagerOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
   const tab = tabs.find((x) => x.id === active) || tabs[0],
     query = tab?.query || "";
   const call = useCallback(async (body) => {
@@ -336,9 +338,14 @@ export default function SqlPage({ profile, theme }) {
         </div>
         <div className="sql-header-actions">
           {admin && (
-            <button className="btn-sm" onClick={() => setManagerOpen(true)}>
-              Manage assignments
-            </button>
+            <>
+              <button className="btn-sm" onClick={() => setProgressOpen(true)}>
+                Student progress
+              </button>
+              <button className="btn-sm" onClick={() => setManagerOpen(true)}>
+                Manage assignments
+              </button>
+            </>
           )}
           <span className={"sql-role-badge " + (admin ? "admin" : "")}>
             {admin ? "ADMIN" : "READ ONLY"}
@@ -637,6 +644,16 @@ export default function SqlPage({ profile, theme }) {
               ×
             </button>
             <SqlChallenges profile={profile} theme={theme} databases={dbs} />
+          </div>
+        </div>
+      )}
+      {progressOpen && (
+        <div className="pw-overlay sql-manager-overlay">
+          <div className="sql-progress-modal">
+            <SqlProgressDashboard
+              assignments={assignments}
+              onClose={() => setProgressOpen(false)}
+            />
           </div>
         </div>
       )}

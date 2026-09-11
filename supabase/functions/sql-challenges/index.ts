@@ -255,11 +255,21 @@ Deno.serve(async (req) => {
             .select("user_id,task_id,completed_at")
             .in("task_id", ids)
         : { data: [] };
+      const { data: attempts } = ids.length
+        ? await sb
+            .from("sql_task_attempts")
+            .select("user_id,created_at")
+            .in("task_id", ids)
+            .order("created_at", { ascending: false })
+        : { data: [] };
       return reply({
         students: (s || []).map((x) => ({
           ...x,
           completed: (d || []).filter((y) => y.user_id === x.id).length,
           total: ids.length,
+          last_submit:
+            (attempts || []).find((y) => y.user_id === x.id)?.created_at ||
+            null,
         })),
       });
     }
