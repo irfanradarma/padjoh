@@ -322,7 +322,12 @@ async function groupPayload(
     (members || []).find((m: any) => m.user_id === userId)?.group_id || null;
   const worksheetGroupIds = admin ? groupIds : mine ? [mine] : [];
   const [{ data: procedures }, { data: worksheetRows }] = await Promise.all([
-    sb.from("sql_case_audit_procedures").select("*").order("order_num"),
+    sb
+      .from("sql_case_audit_procedures")
+      .select(
+        "id,order_num,title,instruction,expected_columns,sample_rows,order_sensitive",
+      )
+      .order("order_num"),
     worksheetGroupIds.length
       ? sb
           .from("sql_case_worksheets")
@@ -330,28 +335,104 @@ async function groupPayload(
           .in("group_id", worksheetGroupIds)
       : Promise.resolve({ data: [] }),
   ]);
-  const worksheets = worksheetGroupIds.map((groupId: string) => ({
-    group_id: groupId,
-    rows: (procedures || []).map((procedure: any) => ({
-      ...procedure,
-      ...(worksheetRows || []).find(
+  const worksheets = worksheetGroupIds.map((groupId: string) => {
+    const rows = (procedures || []).map((procedure: any) => {
+      const stored = (worksheetRows || []).find(
         (row: any) =>
           row.group_id === groupId &&
           Number(row.procedure_id) === Number(procedure.id),
-      ),
-      procedure_id: procedure.id,
-    })),
-  }));
+      );
+      const assignee = stored?.assignee_id
+        ? profileMap.get(stored.assignee_id)
+        : null;
+      const summary = {
+        assignee_id: stored?.assignee_id || null,
+        assignee_name: assignee?.name || null,
+        assignee_npm: assignee?.npm || null,
+        status: stored?.status || "unassigned",
+        updated_at: stored?.updated_at || null,
+        attempt_count: stored?.attempt_count || 0,
+        submitted_at: stored?.submitted_at || null,
+        reviewed_at: stored?.reviewed_at || null,
+        review_feedback: stored?.review_feedback || "",
+      };
+      const mayReadContent = admin || stored?.assignee_id === userId;
+      return {
+        ...procedure,
+        ...summary,
+        ...(mayReadContent
+          ? {
+              query_text: stored?.query_text || "",
+              conclusion: stored?.conclusion || "",
+              validation_feedback: stored?.validation_feedback || null,
+            }
+          : {}),
+        procedure_id: procedure.id,
+      };
+    });
+    return {
+      group_id: groupId,
+      allocation_complete:
+        rows.length > 0 && rows.every((row: any) => row.assignee_id),
+      rows,
+    };
+  });
   return { groups: enriched, my_group_id: mine, worksheets };
+}
+
+function normalizeCell(value: unknown) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number")
+    return Number.isFinite(value) ? value : String(value);
+  if (typeof value === "boolean") return value ? 1 : 0;
+  const text = String(value);
+  if (/^-?\d+(?:\.\d+)?$/.test(text)) return Number(text);
+  return text;
+}
+
+function canonicalRows(
+  rows: any[],
+  columns: string[],
+  orderSensitive: boolean,
+) {
+  const values = rows.map((row) =>
+    columns.map((column) => normalizeCell(row[column])),
+  );
+  if (!orderSensitive)
+    values.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  return values;
+}
+
+async function runClassroomQuery(authorization: string, sql: string) {
+  const response = await fetch(
+    `${Deno.env.get("SUPABASE_URL")}/functions/v1/mysql-console`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: authorization,
+        apikey: Deno.env.get("SUPABASE_ANON_KEY") || "",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "query",
+        database: "audit_incident_lab",
+        sql,
+      }),
+    },
+  );
+  const payload = await response.json();
+  if (!response.ok || payload.error)
+    throw new Error(payload.error || "The SQL query could not be executed.");
+  if (payload.truncated)
+    throw new Error("The result is too large to grade (maximum 500 rows).");
+  return payload;
 }
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers });
   try {
-    const token = (request.headers.get("Authorization") || "").replace(
-      /^Bearer\s+/i,
-      "",
-    );
+    const authorization = request.headers.get("Authorization") || "";
+    const token = authorization.replace(/^Bearer\s+/i, "");
     if (!token) return json({ error: "Sign in required." }, 401);
     const sb = createClient(
       Deno.env.get("SUPABASE_URL") || "",
@@ -632,40 +713,284 @@ Deno.serve(async (request) => {
       return json({ ok: true, completed: !activePhase(run.status) });
     }
 
-    if (action === "save_worksheet") {
+    if (action === "claim_procedure" || action === "unclaim_procedure") {
+      if (run.status !== "audit_active")
+        return json({ error: "The audit phase is not active." }, 409);
+      if (admin) return json({ error: "Students assign their own work." }, 403);
+      const { data: membership } = await sb
+        .from("sql_case_group_members")
+        .select("group_id")
+        .eq("user_id", user.id)
+        .in(
+          "group_id",
+          (
+            await sb.from("sql_case_groups").select("id").eq("run_id", run.id)
+          ).data?.map((item: any) => item.id) || [],
+        )
+        .maybeSingle();
+      if (!membership)
+        return json({ error: "You do not belong to a group." }, 403);
+      const procedureId = Number(body.procedure_id);
+      const { data: worksheet } = await sb
+        .from("sql_case_worksheets")
+        .select("assignee_id,status,query_text,conclusion")
+        .eq("group_id", membership.group_id)
+        .eq("procedure_id", procedureId)
+        .maybeSingle();
+      if (!worksheet) return json({ error: "Procedure not found." }, 404);
+      if (action === "claim_procedure") {
+        if (worksheet.assignee_id && worksheet.assignee_id !== user.id)
+          return json(
+            { error: "This procedure has already been assigned." },
+            409,
+          );
+        const { data, error } = await sb
+          .from("sql_case_worksheets")
+          .update({
+            assignee_id: user.id,
+            assigned_at: new Date().toISOString(),
+            status: "assigned",
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("group_id", membership.group_id)
+          .eq("procedure_id", procedureId)
+          .is("assignee_id", null)
+          .select("procedure_id");
+        if (error) throw error;
+        if (!data?.length && !worksheet.assignee_id)
+          return json({ error: "Another member claimed it first." }, 409);
+      } else {
+        if (worksheet.assignee_id !== user.id)
+          return json(
+            { error: "Only the assignee can release this procedure." },
+            403,
+          );
+        if (
+          worksheet.status !== "assigned" ||
+          worksheet.query_text ||
+          worksheet.conclusion
+        )
+          return json(
+            { error: "A procedure with saved work cannot be released." },
+            409,
+          );
+        const { error } = await sb
+          .from("sql_case_worksheets")
+          .update({
+            assignee_id: null,
+            assigned_at: null,
+            status: "unassigned",
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("group_id", membership.group_id)
+          .eq("procedure_id", procedureId)
+          .eq("assignee_id", user.id);
+        if (error) throw error;
+      }
+      return json({ ok: true });
+    }
+
+    if (action === "save_worksheet" || action === "submit_worksheet") {
       if (run.status !== "audit_active")
         return json({ error: "The audit phase is not active." }, 409);
       const groupId = String(body.group_id || "");
-      if (!admin) {
-        const { data: membership } = await sb
-          .from("sql_case_group_members")
-          .select("user_id")
-          .eq("group_id", groupId)
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (!membership)
-          return json(
-            { error: "This worksheet belongs to another group." },
-            403,
-          );
-      }
+      const procedureId = Number(body.procedure_id);
+      const { data: targetGroup } = await sb
+        .from("sql_case_groups")
+        .select("run_id")
+        .eq("id", groupId)
+        .maybeSingle();
+      if (targetGroup?.run_id !== run.id)
+        return json({ error: "This group belongs to another activity." }, 403);
+      const { data: worksheet } = await sb
+        .from("sql_case_worksheets")
+        .select("*")
+        .eq("group_id", groupId)
+        .eq("procedure_id", procedureId)
+        .maybeSingle();
+      if (!worksheet) return json({ error: "Procedure not found." }, 404);
+      if (!admin && worksheet.assignee_id !== user.id)
+        return json(
+          { error: "This procedure is assigned to another student." },
+          403,
+        );
+      const { count: unassigned } = await sb
+        .from("sql_case_worksheets")
+        .select("procedure_id", { count: "exact", head: true })
+        .eq("group_id", groupId)
+        .is("assignee_id", null);
+      if (unassigned)
+        return json(
+          { error: "Assign every procedure before opening workpapers." },
+          409,
+        );
+      if (worksheet.status === "completed" && !admin)
+        return json(
+          { error: "This workpaper has already been approved." },
+          409,
+        );
       const queryText = String(body.query_text || "");
       const conclusion = String(body.conclusion || "");
       if (queryText.length > 20000 || conclusion.length > 5000)
         return json({ error: "Worksheet content is too long." }, 400);
-      const { error } = await sb.from("sql_case_worksheets").upsert({
-        group_id: groupId,
-        procedure_id: Number(body.procedure_id),
-        query_text: queryText,
-        conclusion,
-        updated_by: user.id,
-        updated_at: new Date().toISOString(),
-      });
+      if (action === "save_worksheet") {
+        const { error } = await sb
+          .from("sql_case_worksheets")
+          .update({
+            query_text: queryText,
+            conclusion,
+            status: "draft",
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("group_id", groupId)
+          .eq("procedure_id", procedureId);
+        if (error) throw error;
+        return json({ ok: true, updated_at: new Date().toISOString() });
+      }
+      if (!queryText.trim() || !conclusion.trim())
+        return json(
+          { error: "Query and conclusion are required before submission." },
+          400,
+        );
+      const { data: procedure, error: procedureError } = await sb
+        .from("sql_case_audit_procedures")
+        .select("validation_sql,expected_columns,order_sensitive")
+        .eq("id", procedureId)
+        .single();
+      if (procedureError) throw procedureError;
+      if (!procedure.validation_sql)
+        return json(
+          { error: "This procedure does not have an answer key yet." },
+          409,
+        );
+      let actual;
+      let expected;
+      try {
+        [actual, expected] = await Promise.all([
+          runClassroomQuery(authorization, queryText),
+          runClassroomQuery(authorization, procedure.validation_sql),
+        ]);
+      } catch (queryError) {
+        const feedback = {
+          passed: false,
+          message:
+            queryError instanceof Error
+              ? queryError.message
+              : String(queryError),
+        };
+        await sb
+          .from("sql_case_worksheets")
+          .update({
+            query_text: queryText,
+            conclusion,
+            status: "needs_revision",
+            validation_feedback: feedback,
+            attempt_count: worksheet.attempt_count + 1,
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("group_id", groupId)
+          .eq("procedure_id", procedureId);
+        return json({ ok: true, validation: feedback });
+      }
+      const sameColumns =
+        JSON.stringify(actual.columns) === JSON.stringify(expected.columns);
+      const sameRows =
+        sameColumns &&
+        JSON.stringify(
+          canonicalRows(
+            actual.rows,
+            expected.columns,
+            procedure.order_sensitive,
+          ),
+        ) ===
+          JSON.stringify(
+            canonicalRows(
+              expected.rows,
+              expected.columns,
+              procedure.order_sensitive,
+            ),
+          );
+      const passed = sameColumns && sameRows;
+      const feedback = {
+        passed,
+        message: passed
+          ? "Query result matches the answer key. Waiting for conclusion review."
+          : !sameColumns
+            ? "The output columns do not match the expected structure."
+            : "The output rows do not match the answer key yet.",
+        expected_columns: expected.columns,
+        actual_columns: actual.columns,
+        expected_row_count: expected.rowCount,
+        actual_row_count: actual.rowCount,
+      };
+      const now = new Date().toISOString();
+      const { error } = await sb
+        .from("sql_case_worksheets")
+        .update({
+          query_text: queryText,
+          conclusion,
+          status: passed ? "submitted" : "needs_revision",
+          validation_feedback: feedback,
+          attempt_count: worksheet.attempt_count + 1,
+          submitted_at: passed ? now : worksheet.submitted_at,
+          reviewed_at: null,
+          reviewed_by: null,
+          review_feedback: "",
+          updated_by: user.id,
+          updated_at: now,
+        })
+        .eq("group_id", groupId)
+        .eq("procedure_id", procedureId);
       if (error) throw error;
-      return json({ ok: true, updated_at: new Date().toISOString() });
+      return json({ ok: true, validation: feedback });
     }
 
     if (!admin) return json({ error: "Admin only." }, 403);
+
+    if (action === "admin_review_worksheet") {
+      if (!["audit_active", "finished"].includes(run.status))
+        return json({ error: "The audit workpapers are not available." }, 409);
+      const approved = Boolean(body.approved);
+      const feedback = String(body.feedback || "").trim();
+      if (!approved && !feedback)
+        return json({ error: "Add revision feedback for the student." }, 400);
+      const groupId = String(body.group_id || "");
+      const { data: targetGroup } = await sb
+        .from("sql_case_groups")
+        .select("run_id")
+        .eq("id", groupId)
+        .maybeSingle();
+      if (targetGroup?.run_id !== run.id)
+        return json({ error: "This group belongs to another activity." }, 403);
+      const { data: worksheet } = await sb
+        .from("sql_case_worksheets")
+        .select("status")
+        .eq("group_id", groupId)
+        .eq("procedure_id", Number(body.procedure_id))
+        .maybeSingle();
+      if (!worksheet || !["submitted", "completed"].includes(worksheet.status))
+        return json(
+          { error: "The query must pass before conclusion review." },
+          409,
+        );
+      const { error } = await sb
+        .from("sql_case_worksheets")
+        .update({
+          status: approved ? "completed" : "needs_revision",
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user.id,
+          review_feedback: feedback,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("group_id", groupId)
+        .eq("procedure_id", Number(body.procedure_id));
+      if (error) throw error;
+      return json({ ok: true });
+    }
 
     if (action === "admin_open_checkin") {
       if (run.status !== "hidden")

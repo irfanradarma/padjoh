@@ -206,153 +206,402 @@ function GroupCards({ groups, editable, onMove }) {
   );
 }
 
-function Worksheet({ worksheet, group, editable, onSave, onRefresh }) {
-  const [drafts, setDrafts] = useState({});
-  const [saving, setSaving] = useState({});
-  const [results, setResults] = useState({});
-  useEffect(() => {
-    const next = {};
-    for (const row of worksheet?.rows || [])
-      next[row.procedure_id] = {
-        query_text: row.query_text || "",
-        conclusion: row.conclusion || "",
-      };
-    setDrafts(next);
-  }, [worksheet]);
+const WORK_STATUS = {
+  unassigned: ["Belum diambil", "idle"],
+  assigned: ["Belum dikerjakan", "assigned"],
+  draft: ["Draft", "draft"],
+  needs_revision: ["Perlu diperbaiki", "revision"],
+  submitted: ["Menunggu review", "submitted"],
+  completed: ["Selesai", "completed"],
+};
 
-  const update = (id, field, value) =>
+function WorkStatus({ value }) {
+  const [label, tone] = WORK_STATUS[value] || WORK_STATUS.unassigned;
+  return <span className={`sc-work-status ${tone}`}>{label}</span>;
+}
+
+function AssignmentBoard({ worksheet, group, userId, active, onAction }) {
+  const rows = worksheet?.rows || [];
+  const assigned = rows.filter((row) => row.assignee_id).length;
+  const workloads = Object.fromEntries(
+    (group?.members || []).map((member) => [
+      member.user_id,
+      rows.filter((row) => row.assignee_id === member.user_id).length,
+    ]),
+  );
+
+  return (
+    <section className="sc-card sc-assignment-board">
+      <div className="sc-card-head">
+        <div>
+          <span className="sc-eyebrow">AUDIT PROGRAM ASSIGNMENT</span>
+          <h3>Pembagian prosedur · Grup {group?.group_number}</h3>
+          <p>
+            Ambil prosedur untuk diri sendiri. Workpaper terbuka setelah semua
+            prosedur memiliki penanggung jawab.
+          </p>
+        </div>
+        <div className="sc-allocation-count">
+          <b>
+            {assigned}/{rows.length}
+          </b>
+          <span>assigned</span>
+        </div>
+      </div>
+      <div className="sc-allocation-progress">
+        <i
+          style={{
+            width: `${rows.length ? (assigned / rows.length) * 100 : 0}%`,
+          }}
+        />
+      </div>
+      <div className="sc-workload-row">
+        {(group?.members || []).map((member) => (
+          <span
+            key={member.user_id}
+            className={member.user_id === userId ? "mine" : ""}
+          >
+            {member.name} <b>{workloads[member.user_id] || 0}</b>
+          </span>
+        ))}
+      </div>
+      <div className="sc-procedure-board">
+        {rows.map((row) => {
+          const mine = row.assignee_id === userId;
+          const canRelease =
+            mine &&
+            row.status === "assigned" &&
+            !row.query_text &&
+            !row.conclusion;
+          return (
+            <article key={row.procedure_id} className={mine ? "mine" : ""}>
+              <div className="sc-procedure-order">
+                {String(row.order_num).padStart(2, "0")}
+              </div>
+              <div>
+                <h4>{row.title}</h4>
+                <div className="sc-owner-line">
+                  <WorkStatus value={row.status} />
+                  <span>
+                    {row.assignee_name
+                      ? `${row.assignee_name} · ${row.assignee_npm}`
+                      : "Belum ada pemilik"}
+                  </span>
+                </div>
+              </div>
+              {active && !row.assignee_id && (
+                <button
+                  className="btn-sm"
+                  onClick={() =>
+                    onAction("claim_procedure", {
+                      procedure_id: row.procedure_id,
+                    })
+                  }
+                >
+                  Ambil
+                </button>
+              )}
+              {active && canRelease && (
+                <button
+                  className="btn-sm danger"
+                  onClick={() =>
+                    onAction("unclaim_procedure", {
+                      procedure_id: row.procedure_id,
+                    })
+                  }
+                >
+                  Lepas
+                </button>
+              )}
+            </article>
+          );
+        })}
+      </div>
+      {worksheet?.allocation_complete && (
+        <div className="sc-allocation-ready">
+          ✓ Pembagian lengkap. Workspace individual sudah terbuka.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ExpectedOutput({ row }) {
+  const columns = row.expected_columns || [];
+  const samples = row.sample_rows || [];
+  return (
+    <aside className="sc-expected-panel">
+      <span className="sc-eyebrow">EXPECTED OUTPUT</span>
+      <h4>Contoh bentuk hasil</h4>
+      <p>
+        Data berikut hanya contoh dummy. Query Anda dinilai menggunakan seluruh
+        hasil pada database kelas.
+      </p>
+      <div className="sc-sample-table-wrap">
+        <table className="sc-sample-table">
+          <thead>
+            <tr>
+              {columns.map((column) => (
+                <th key={column}>{column}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {samples.map((sample, index) => (
+              <tr key={index}>
+                {columns.map((column) => (
+                  <td key={column}>
+                    {sample[column] === null
+                      ? "NULL"
+                      : String(sample[column] ?? "—")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="sc-output-rules">
+        <b>Yang diperiksa otomatis</b>
+        <span>Nama dan urutan kolom</span>
+        <span>Jumlah serta isi seluruh baris</span>
+        <span>
+          {row.order_sensitive
+            ? "Urutan baris diperiksa"
+            : "Urutan baris diabaikan"}
+        </span>
+      </div>
+      {row.validation_feedback && (
+        <div
+          className={
+            row.validation_feedback.passed
+              ? "sc-validation passed"
+              : "sc-validation failed"
+          }
+        >
+          <b>
+            {row.validation_feedback.passed ? "Query cocok" : "Belum cocok"}
+          </b>
+          <span>{row.validation_feedback.message}</span>
+          {Number.isInteger(row.validation_feedback.actual_row_count) && (
+            <small>
+              Output Anda {row.validation_feedback.actual_row_count} baris ·
+              target {row.validation_feedback.expected_row_count} baris
+            </small>
+          )}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function AuditWorkspace({
+  worksheet,
+  group,
+  userId,
+  admin,
+  editable,
+  onAction,
+}) {
+  const available = (worksheet?.rows || []).filter(
+    (row) => admin || row.assignee_id === userId,
+  );
+  const [activeId, setActiveId] = useState(null);
+  const [drafts, setDrafts] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [reviewNotes, setReviewNotes] = useState({});
+
+  useEffect(() => {
+    if (!available.length) return;
+    setActiveId((current) =>
+      available.some((row) => row.procedure_id === current)
+        ? current
+        : available[0].procedure_id,
+    );
+    setDrafts((current) => {
+      if (admin)
+        return Object.fromEntries(
+          available.map((row) => [
+            row.procedure_id,
+            {
+              query_text: row.query_text || "",
+              conclusion: row.conclusion || "",
+            },
+          ]),
+        );
+      let changed = false;
+      const next = { ...current };
+      for (const row of available) {
+        if (Object.prototype.hasOwnProperty.call(next, row.procedure_id))
+          continue;
+        next[row.procedure_id] = {
+          query_text: row.query_text || "",
+          conclusion: row.conclusion || "",
+        };
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [worksheet, available.length, admin]);
+
+  const row =
+    available.find((item) => item.procedure_id === activeId) || available[0];
+  if (!row)
+    return (
+      <section className="sc-card sc-center">
+        <h3>Belum ada prosedur milik Anda</h3>
+        <p>Kembali ke assignment board dan ambil sedikitnya satu prosedur.</p>
+      </section>
+    );
+
+  const draft = drafts[row.procedure_id] || {
+    query_text: row.query_text || "",
+    conclusion: row.conclusion || "",
+  };
+  const locked = !editable || row.status === "completed";
+  const update = (field, value) =>
     setDrafts((current) => ({
       ...current,
-      [id]: { ...current[id], [field]: value },
+      [row.procedure_id]: { ...draft, [field]: value },
     }));
-  async function save(row) {
-    setSaving((current) => ({ ...current, [row.procedure_id]: true }));
-    await onSave(row, drafts[row.procedure_id] || {});
-    setSaving((current) => ({ ...current, [row.procedure_id]: false }));
-  }
-  async function run(row) {
-    const query = drafts[row.procedure_id]?.query_text?.trim();
-    if (!query) return;
-    setResults((current) => ({
-      ...current,
-      [row.procedure_id]: { loading: true },
-    }));
-    const { data, error } = await supabase.functions.invoke("mysql-console", {
-      body: { action: "query", database: "audit_incident_lab", sql: query },
+
+  async function perform(action, extra = {}) {
+    setBusy(true);
+    await onAction(action, {
+      group_id: worksheet.group_id,
+      procedure_id: row.procedure_id,
+      ...draft,
+      ...extra,
     });
-    setResults((current) => ({
-      ...current,
-      [row.procedure_id]:
-        error || data?.error ? { error: data?.error || error.message } : data,
-    }));
+    setBusy(false);
   }
 
   return (
-    <section className="sc-card sc-worksheet">
-      <div className="sc-card-head">
+    <section className="sc-audit-workspace">
+      <nav className="sc-my-procedures">
         <div>
-          <span className="sc-eyebrow">SHARED WORKPAPER</span>
-          <h3>Grup {group?.group_number}</h3>
+          <span className="sc-eyebrow">
+            {admin ? "GROUP WORK" : "MY PROCEDURES"}
+          </span>
+          <h3>{available.length} workpaper</h3>
         </div>
-        {onRefresh && (
-          <button className="btn-sm" onClick={onRefresh}>
-            Refresh team changes
+        {available.map((item) => (
+          <button
+            key={item.procedure_id}
+            className={item.procedure_id === row.procedure_id ? "active" : ""}
+            onClick={() => setActiveId(item.procedure_id)}
+          >
+            <span>{String(item.order_num).padStart(2, "0")}</span>
+            <div>
+              <b>{item.title}</b>
+              <small>
+                {admin ? item.assignee_name : WORK_STATUS[item.status]?.[0]}
+              </small>
+            </div>
+            <WorkStatus value={item.status} />
           </button>
+        ))}
+      </nav>
+      <main className="sc-work-editor">
+        <header>
+          <div>
+            <span>PROSEDUR {String(row.order_num).padStart(2, "0")}</span>
+            <h3>{row.title}</h3>
+          </div>
+          <WorkStatus value={row.status} />
+        </header>
+        <div className="sc-instruction">
+          <b>Prosedur audit</b>
+          <p>{row.instruction}</p>
+        </div>
+        <label>
+          SQL query
+          <textarea
+            className="sc-query-input"
+            value={draft.query_text || ""}
+            readOnly={locked}
+            onChange={(event) => update("query_text", event.target.value)}
+            spellCheck="false"
+            placeholder="SELECT ..."
+          />
+        </label>
+        <label>
+          Kesimpulan auditor
+          <textarea
+            value={draft.conclusion || ""}
+            readOnly={locked}
+            onChange={(event) => update("conclusion", event.target.value)}
+            placeholder="Jelaskan makna hasil query dan implikasinya bagi audit..."
+          />
+        </label>
+        {row.review_feedback && (
+          <div className="sc-review-feedback">
+            <b>Catatan dosen</b>
+            <span>{row.review_feedback}</span>
+          </div>
         )}
-      </div>
-      {(worksheet?.rows || []).map((row) => {
-        const draft = drafts[row.procedure_id] || {};
-        const result = results[row.procedure_id];
-        return (
-          <article className="sc-work-row" key={row.procedure_id}>
-            <div className="sc-procedure">
-              <span>Prosedur {row.order_num}</span>
-              <h4>{row.title}</h4>
-              <p>{row.instruction}</p>
-              {row.updated_at && (
-                <small>
-                  Terakhir diubah{" "}
-                  {new Date(row.updated_at).toLocaleString("id-ID")}
-                </small>
-              )}
-            </div>
-            <div className="sc-work-fields">
-              <label>
-                Query
-                <textarea
-                  value={draft.query_text || ""}
-                  readOnly={!editable}
-                  onChange={(event) =>
-                    update(row.procedure_id, "query_text", event.target.value)
-                  }
-                  placeholder="Tulis query SQL…"
-                />
-              </label>
-              <label>
-                Kesimpulan
-                <textarea
-                  value={draft.conclusion || ""}
-                  readOnly={!editable}
-                  onChange={(event) =>
-                    update(row.procedure_id, "conclusion", event.target.value)
-                  }
-                  placeholder="Apa arti hasil query ini bagi audit?"
-                />
-              </label>
-              {editable && (
-                <div className="sc-work-actions">
-                  <button className="btn-sm" onClick={() => run(row)}>
-                    Run query
-                  </button>
-                  <button
-                    className="btn-sm btn-primary"
-                    onClick={() => save(row)}
-                    disabled={saving[row.procedure_id]}
-                  >
-                    {saving[row.procedure_id] ? "Saving…" : "Save workpaper"}
-                  </button>
-                </div>
-              )}
-              {result?.loading && (
-                <div className="sc-query-note">Menjalankan query…</div>
-              )}
-              {result?.error && <div className="sql-error">{result.error}</div>}
-              {result?.columns && (
-                <div className="sc-mini-result">
-                  <div>
-                    {result.rowCount} row · {result.durationMs} ms
-                  </div>
-                  <table>
-                    <thead>
-                      <tr>
-                        {result.columns.map((column) => (
-                          <th key={column}>{column}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.rows.slice(0, 20).map((item, index) => (
-                        <tr key={index}>
-                          {result.columns.map((column) => (
-                            <td key={column}>
-                              {item[column] === null
-                                ? "NULL"
-                                : String(item[column])}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {result.rowCount > 20 && (
-                    <small>Menampilkan 20 baris pertama.</small>
-                  )}
-                </div>
-              )}
-            </div>
-          </article>
-        );
-      })}
+        {!admin && !locked && (
+          <div className="sc-editor-actions">
+            <span>
+              Draft tidak ditimpa refresh · Percobaan submit{" "}
+              {row.attempt_count || 0}
+            </span>
+            <button
+              className="btn-sm"
+              disabled={busy}
+              onClick={() => perform("save_worksheet")}
+            >
+              Save Draft
+            </button>
+            <button
+              className="btn-sm btn-primary"
+              disabled={
+                busy || !draft.query_text?.trim() || !draft.conclusion?.trim()
+              }
+              onClick={() => perform("submit_worksheet")}
+            >
+              {busy ? "Memproses…" : "Submit Answer"}
+            </button>
+          </div>
+        )}
+        {admin && row.status === "submitted" && (
+          <div className="sc-admin-review">
+            <textarea
+              value={reviewNotes[row.procedure_id] || ""}
+              onChange={(event) =>
+                setReviewNotes((current) => ({
+                  ...current,
+                  [row.procedure_id]: event.target.value,
+                }))
+              }
+              placeholder="Catatan review kesimpulan (wajib jika meminta revisi)"
+            />
+            <button
+              className="btn-sm danger"
+              onClick={() =>
+                perform("admin_review_worksheet", {
+                  approved: false,
+                  feedback: reviewNotes[row.procedure_id] || "",
+                })
+              }
+            >
+              Minta revisi
+            </button>
+            <button
+              className="btn-sm btn-primary"
+              onClick={() =>
+                perform("admin_review_worksheet", {
+                  approved: true,
+                  feedback: reviewNotes[row.procedure_id] || "",
+                })
+              }
+            >
+              Setujui kesimpulan
+            </button>
+          </div>
+        )}
+      </main>
+      <ExpectedOutput row={row} />
     </section>
   );
 }
@@ -523,10 +772,12 @@ export default function SqlStudyCaseExercise({ profile }) {
   async function act(action, extra = {}) {
     try {
       setError("");
-      await call(action, extra);
+      const result = await call(action, extra);
       await load();
+      return result;
     } catch (value) {
       setError(value.message);
+      return null;
     }
   }
   async function createRun() {
@@ -555,9 +806,11 @@ export default function SqlStudyCaseExercise({ profile }) {
     () =>
       (state?.worksheets || []).map((item) => ({
         group_id: item.group_id,
-        filled: item.rows.filter(
-          (row) => row.query_text?.trim() && row.conclusion?.trim(),
+        assigned: item.rows.filter((row) => row.assignee_id).length,
+        filled: item.rows.filter((row) =>
+          ["submitted", "completed"].includes(row.status),
         ).length,
+        completed: item.rows.filter((row) => row.status === "completed").length,
         total: item.rows.length,
       })),
     [state?.worksheets],
@@ -767,20 +1020,38 @@ export default function SqlStudyCaseExercise({ profile }) {
                   >
                     Grup {group.group_number}
                     <b>
-                      {progress?.filled || 0}/{progress?.total || 0}
+                      {progress?.completed || 0}/{progress?.total || 0} selesai
                     </b>
+                    <small>
+                      {progress?.assigned || 0} assigned ·{" "}
+                      {progress?.filled || 0} submitted
+                    </small>
                   </button>
                 );
               })}
             </div>
           </section>
           {visibleWorksheet && (
-            <Worksheet
-              worksheet={visibleWorksheet}
-              group={visibleGroup}
-              editable={false}
-              onRefresh={load}
-            />
+            <>
+              <AssignmentBoard
+                worksheet={visibleWorksheet}
+                group={visibleGroup}
+                userId={profile.id}
+                active={false}
+                onAction={act}
+              />
+              {visibleWorksheet.allocation_complete && (
+                <AuditWorkspace
+                  key={visibleWorksheet.group_id}
+                  worksheet={visibleWorksheet}
+                  group={visibleGroup}
+                  userId={profile.id}
+                  admin
+                  editable={false}
+                  onAction={act}
+                />
+              )}
+            </>
           )}
         </>
       )}
@@ -850,19 +1121,26 @@ export default function SqlStudyCaseExercise({ profile }) {
       {!admin &&
         ["audit_active", "finished"].includes(run?.status) &&
         visibleWorksheet && (
-          <Worksheet
-            worksheet={visibleWorksheet}
-            group={myGroup}
-            editable={run.status === "audit_active"}
-            onSave={(row, draft) =>
-              act("save_worksheet", {
-                group_id: state.my_group_id,
-                procedure_id: row.procedure_id,
-                ...draft,
-              })
-            }
-            onRefresh={load}
-          />
+          <>
+            <AssignmentBoard
+              worksheet={visibleWorksheet}
+              group={myGroup}
+              userId={profile.id}
+              active={run.status === "audit_active"}
+              onAction={act}
+            />
+            {visibleWorksheet.allocation_complete && (
+              <AuditWorkspace
+                key={visibleWorksheet.group_id}
+                worksheet={visibleWorksheet}
+                group={myGroup}
+                userId={profile.id}
+                admin={false}
+                editable={run.status === "audit_active"}
+                onAction={act}
+              />
+            )}
+          </>
         )}
     </div>
   );
