@@ -1,0 +1,84 @@
+---
+title: Simplified SQL Audit Incident ERD
+---
+erDiagram
+    USERS ||--o{ ASSETS : owns
+    USERS ||--o{ LOGIN_LOGS : authenticates
+    ASSETS ||--o{ LOGIN_LOGS : used_for
+    USERS ||--o{ DATABASE_ACTIVITY : executes
+    LOGIN_LOGS ||--o{ DATABASE_ACTIVITY : session_source
+    USERS ||--o{ NETWORK_TRAFFIC : attributed_to
+    ASSETS ||--o{ NETWORK_TRAFFIC : generates
+    USERS ||--o{ INCIDENT_REPORTS : reported_by
+    LOGIN_LOGS ||--o{ INCIDENT_REPORTS : references
+
+    USERS {
+        int user_id PK
+        varchar username UK
+        varchar full_name
+        varchar department
+        varchar role_name
+        time work_start
+        time work_end
+        boolean mfa_enabled
+        varchar account_status
+    }
+
+    ASSETS {
+        int asset_id PK
+        int owner_user_id FK
+        varchar asset_tag UK
+        varchar hostname
+        varchar device_type
+        varchar registered_ip
+        varchar asset_status
+    }
+
+    LOGIN_LOGS {
+        bigint login_id PK
+        int user_id FK
+        int asset_id FK
+        datetime attempted_at
+        varchar source_ip
+        varchar country_code
+        varchar login_status
+        varchar failure_reason
+    }
+
+    DATABASE_ACTIVITY {
+        bigint activity_id PK
+        bigint login_id FK
+        int user_id FK
+        datetime executed_at
+        varchar database_name
+        varchar query_type
+        varchar target_table
+        int returned_rows
+        boolean exported
+        text query_text
+    }
+
+    NETWORK_TRAFFIC {
+        bigint traffic_id PK
+        int asset_id FK
+        int user_id FK
+        datetime captured_at
+        varchar source_ip
+        varchar destination_ip
+        int destination_port
+        bigint bytes_sent
+        bigint bytes_received
+        varchar action
+    }
+
+    INCIDENT_REPORTS {
+        bigint report_id PK
+        bigint related_login_id FK
+        int reported_by_user_id FK
+        datetime opened_at
+        varchar report_type
+        varchar severity
+        text description
+        varchar report_status
+        text resolution_notes
+    }

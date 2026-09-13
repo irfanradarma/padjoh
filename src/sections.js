@@ -12,7 +12,7 @@ export const SECTIONS = [
   { id: 11, title: 'Protection of Information Assets I',       short: 'Info Assets I',       group: 'post' },
   { id: 12, title: 'Protection of Information Assets II',      short: 'Info Assets II',      group: 'post' },
   { id: 13, title: 'Intro to SQL for Auditing',                short: 'Intro to SQL',        group: 'post' },
-  { id: 14, title: 'Case Study: Auditing with SQL',            short: 'SQL Case Study',      group: 'post' },
+  { id: 14, title: 'SQL Study Case',                            short: 'SQL Study Case',      group: 'post' },
   { id: 15, title: 'Final Exam Prep',                          short: 'UAS Prep',            group: 'post' },
   { id: 16, title: 'Final Exam',                               short: 'Final Exam',          group: 'post' },
 ]

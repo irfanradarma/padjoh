@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, Fragment } from 'react'
 import { supabase } from '../../supabaseClient'
 import { SECTIONS } from '../../sections'
 import QuizView from './QuizView'
+import SqlStudyCaseExercise from './SqlStudyCaseExercise'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -1170,6 +1171,8 @@ export default function ExerciseTab({ sectionId, userId, profile, selectedStuden
   const [quizView, setQuizView] = useState(null)
 
   const sectionTitle = SECTIONS.find(s => s.id === sectionId)?.title ?? `Sesi ${sectionId}`
+
+  if (sectionId === 14) return <SqlStudyCaseExercise profile={profile} />
 
   if (quizView) {
     return (

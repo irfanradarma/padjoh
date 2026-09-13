@@ -1,0 +1,10 @@
+grant all on public.sql_case_questions to service_role;
+grant all on public.sql_case_runs to service_role;
+grant all on public.sql_case_participants to service_role;
+grant all on public.sql_case_answers to service_role;
+grant all on public.sql_case_phase_submissions to service_role;
+grant all on public.sql_case_groups to service_role;
+grant all on public.sql_case_group_members to service_role;
+grant all on public.sql_case_audit_procedures to service_role;
+grant all on public.sql_case_worksheets to service_role;
+grant usage, select on all sequences in schema public to service_role;
