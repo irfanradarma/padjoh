@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient'
 import { SECTIONS } from '../../sections'
 import QuizView from './QuizView'
 import SqlStudyCaseExercise from './SqlStudyCaseExercise'
+import CisaCaseSubmissions from '../CisaCaseSubmissions'
 
 function fmtDate(str) {
   if (!str) return '—'
@@ -1198,6 +1199,7 @@ export default function ExerciseTab({ sectionId, userId, profile, selectedStuden
   if (profile.is_admin) {
     return (
       <div>
+        {sectionId === 15 && <CisaCaseSubmissions profile={profile} />}
         <AdminQuizSection sectionId={sectionId} students={students} onOpenSession={openSession} />
         {isSection2 ? (
           <AdminSheetExercise students={students} selectedStudentId={selectedStudentId} />
@@ -1217,6 +1219,7 @@ export default function ExerciseTab({ sectionId, userId, profile, selectedStuden
 
   return (
     <div>
+      {sectionId === 15 && <CisaCaseSubmissions profile={profile} />}
       <StudentQuizSection sectionId={sectionId} onOpenSession={openSession} />
       {isSection2 && <StudentSheetExercise profile={profile} />}
       <StudentExerciseView sectionId={sectionId} userId={userId} />
