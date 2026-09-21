@@ -1891,3 +1891,21 @@ body {
 .cisa-detail { min-width: 300px; max-width: 460px; max-height: 420px; overflow: auto; padding: 10px 0; }
 .cisa-detail h4 { margin: 12px 0 5px; }
 .cisa-detail p { margin: 5px 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cisa-student-results { display: grid; gap: 14px; }
+.cisa-result-card { padding: 18px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface2); }
+.cisa-result-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.cisa-result-head h4 { margin: 5px 0; font-size: 14px; }
+.cisa-result-head small { color: var(--muted); }
+.cisa-package { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.cisa-status { flex: none; padding: 6px 9px; border-radius: 100px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
+.cisa-status.graded { background: #dcfce7; color: #166534; }
+.cisa-status.grading_failed { background: #fee2e2; color: #991b1b; }
+.cisa-result-card details { margin-top: 14px; }
+.cisa-result-card summary { cursor: pointer; color: var(--accent); font-weight: 700; }
+.cisa-waiting, .cisa-empty { margin: 14px 0 0; padding: 12px; border-radius: 7px; background: var(--surface); color: var(--muted); }
+.cisa-old-version { opacity: .58; }
+.cisa-progress { position: relative; overflow: hidden; min-height: 36px; margin: 14px 0; border: 1px solid var(--border); border-radius: 7px; background: var(--surface2); }
+.cisa-progress > div { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--accent) 20%, transparent); transition: width .25s ease; }
+.cisa-progress span { position: relative; z-index: 1; display: block; padding: 8px 11px; font-size: 12px; font-weight: 700; }
+.cisa-error { color: #b91c1c !important; }
+@media(max-width:640px){.cisa-result-head{flex-direction:column}.cisa-card{padding:16px}.cisa-status{align-self:flex-start}}

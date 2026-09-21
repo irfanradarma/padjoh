@@ -11,8 +11,9 @@
 ## Jurnal (aktif sejak 20 September 2026)
 
 - `Post-UTS → UAS Prep → Exercise` menerima `.cisaenc` dari akun salah satu anggota tim. Fitur Exercise yang sudah ada tetap dipertahankan.
-- Edge Function `cisa-case-submission` mendekripsi di server, memvalidasi kelas dan anggota terhadap `profiles`, menyimpan setiap upload sebagai versi tersendiri, lalu memanggil AI untuk penilaian draf.
-- Admin dapat melihat identitas tim, waktu upload, jawaban, skor per butir, komentar AI, dan meminta penilaian ulang. Skor ditandai `needs_instructor_review`; belum otomatis menjadi nilai final.
+- Satu upload berlaku bagi seluruh anggota yang tercantum. Edge Function mencari submission berdasarkan ID profil di array `members`, lalu melakukan pemeriksaan keanggotaan kedua sebelum mengembalikan data. Mahasiswa hanya melihat versi terbaru tiap tim dan paket.
+- Edge Function `cisa-case-submission` mendekripsi di server, memvalidasi kelas dan anggota terhadap `profiles`, dan menyimpan setiap upload sebagai versi tersendiri. Penilaian AI baru dipanggil oleh tindakan admin.
+- Upload baru berstatus menunggu dan tidak langsung memanggil AI. Admin dapat menilai semua submission terbaru yang masih menunggu per kelas, memantau progres, melihat versi lama, atau menilai ulang satu submission. Sesudah dinilai, seluruh anggota tim melihat skor per butir dan feedback di Exercise. Skor ditandai `needs_instructor_review`; belum otomatis menjadi nilai final dosen.
 - Tabel migrasi `20260920010000_cisa_case_submissions.sql` memiliki RLS aktif dan tidak memberikan akses langsung kepada `anon`/`authenticated`; akses melalui Edge Function yang mengecek sesi dan peran.
 
 ## Kunci dan aktivasi

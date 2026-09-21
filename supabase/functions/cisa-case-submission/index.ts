@@ -104,6 +104,16 @@ async function gradeSubmission(sb: any, submission: any) {
   return assessment;
 }
 
+function withLatestFlag(rows: any[]) {
+  const seen = new Set<string>();
+  return rows.map(row => {
+    const versionKey = `${row.team_key}:${row.round}`;
+    const is_latest = !seen.has(versionKey);
+    seen.add(versionKey);
+    return { ...row, is_latest };
+  });
+}
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: HEADERS });
   if (req.method !== 'POST') return bad('POST required.', 405);
@@ -119,12 +129,20 @@ Deno.serve(async req => {
     const body = await req.json();
 
     if (body.action === 'list') {
-      if (!profile.is_admin) return bad('Admin only.', 403);
-      let query = sb.from('cisa_case_submissions').select('*').order('uploaded_at', { ascending: false }).limit(200);
-      if (['Audit-2', 'Audit-BL'].includes(body.class_name)) query = query.eq('class_name', body.class_name);
+      let query = sb.from('cisa_case_submissions').select('*').order('uploaded_at', { ascending: false });
+      if (profile.is_admin) {
+        query = query.limit(200);
+        if (['Audit-2', 'Audit-BL'].includes(body.class_name)) query = query.eq('class_name', body.class_name);
+      } else {
+        // JSON containment makes one upload visible to every recorded team member.
+        query = query.contains('members', [{ id: profile.id }]).limit(50);
+      }
       const { data, error } = await query;
       if (error) throw error;
-      return reply({ submissions: data });
+      const visible = (data || []).filter((row: any) => profile.is_admin ||
+        (Array.isArray(row.members) && row.members.some((member: any) => member.id === profile.id)));
+      const marked = withLatestFlag(visible);
+      return reply({ submissions: profile.is_admin ? marked : marked.filter((row: any) => row.is_latest) });
     }
 
     if (body.action === 'grade') {
@@ -161,11 +179,7 @@ Deno.serve(async req => {
       status: 'pending', assessment: null, graded_at: null, grading_error: null
     }).select('*').single();
     if (saveError) throw saveError;
-    try { await gradeSubmission(sb, saved); return reply({ id: saved.id, round: saved.round, status: 'graded', members: normalizedMembers }); }
-    catch (gradeError) {
-      await sb.from('cisa_case_submissions').update({ status: 'grading_failed', grading_error: String(gradeError).slice(0, 500) }).eq('id', saved.id);
-      return reply({ id: saved.id, round: saved.round, status: 'grading_failed', members: normalizedMembers });
-    }
+    return reply({ id: saved.id, round: saved.round, status: 'pending', members: normalizedMembers });
   } catch (error) {
     return bad(error instanceof Error ? error.message : 'Unknown server error.', 500);
   }
