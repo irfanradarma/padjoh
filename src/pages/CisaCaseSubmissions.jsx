@@ -25,6 +25,17 @@ export function isCodexReviewed(row) {
   return row?.assessment?.reviewer_status === 'reviewed_by_codex'
 }
 
+export function buildStudentGradeRows(students = [], submissions = [], className = '') {
+  const latestByNpm = new Map()
+  submissions.filter(row => row.is_latest && (!className || row.class_name === className)).forEach(row => {
+    row.members?.forEach(member => latestByNpm.set(String(member.npm), row))
+  })
+  return students
+    .filter(student => !className || student.class === className)
+    .map(student => ({ student, submission: latestByNpm.get(String(student.npm)) || null }))
+    .sort((a, b) => String(a.student.name || '').localeCompare(String(b.student.name || ''), 'id'))
+}
+
 async function invokeCisaFunction(body) {
   const { data, error } = await supabase.functions.invoke(functionName, { body })
   if (!error && !data?.error) return data
@@ -53,7 +64,7 @@ function Assessment({ row, showAnswers = false }) {
   </div>
 }
 
-export default function CisaCaseSubmissions({ profile }) {
+export default function CisaCaseSubmissions({ profile, students = [] }) {
   const [file, setFile] = useState(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -114,6 +125,7 @@ export default function CisaCaseSubmissions({ profile }) {
   }
 
   const batchRows = useMemo(() => submissions.filter(row => row.is_latest && row.class_name === classFilter && row.status !== 'graded'), [submissions, classFilter])
+  const studentGradeRows = useMemo(() => buildStudentGradeRows(students, submissions, classFilter), [students, submissions, classFilter])
 
   async function gradeClass() {
     if (!classFilter || !batchRows.length) return
@@ -154,10 +166,13 @@ export default function CisaCaseSubmissions({ profile }) {
     {profile.is_admin && <section className="cisa-card">
       <div className="cisa-card-head"><div><h3>Submission dan penilaian kelas</h3><p>Penilaian kelas hanya memproses submission terbaru setiap tim dan paket. Hasil yang sudah direviu Codex ditandai sebagai penilaian final.</p></div><div className="cisa-filters"><select value={classFilter} onChange={event => setClassFilter(event.target.value)}><option value="Audit-2">Audit-2</option><option value="Audit-BL">Audit-BL</option><option value="">Semua kelas</option></select><button className="btn" onClick={refresh} disabled={loading || busy}>Refresh</button><button className="btn btn-primary" onClick={gradeClass} disabled={busy || !classFilter || !batchRows.length}>Nilai kelas ({batchRows.length})</button></div></div>
       {gradingProgress && <div className="cisa-progress" role="status"><div style={{ width: `${gradingProgress.total ? gradingProgress.completed / gradingProgress.total * 100 : 0}%` }} /><span>Menilai {gradingProgress.completed}/{gradingProgress.total} submission</span></div>}
-      {loading ? <p>Memuat…</p> : !submissions.length ? <p>Belum ada submission.</p> : <div className="cisa-table-wrap"><table className="cisa-table"><thead><tr><th>Kelas</th><th>Paket</th><th>Tim</th><th>Upload</th><th>Versi</th><th>Status</th><th>Skor</th><th>Detail</th></tr></thead><tbody>{submissions.map(row => <tr key={row.id} className={row.is_latest ? '' : 'cisa-old-version'}>
-        <td>{row.class_name}</td><td>{row.round}</td><td><TeamNames members={row.members} /></td><td>{new Date(row.uploaded_at).toLocaleString('id-ID')}</td><td>{row.is_latest ? 'Terbaru' : 'Terdahulu'}</td><td>{prettyStatus[row.status] || row.status}</td><td>{row.assessment ? `${row.assessment.total} / ${row.assessment.max_score}` : '—'}</td>
-        <td><details><summary>Lihat</summary><Assessment row={row} showAnswers />{isCodexReviewed(row) ? <span className="cisa-final-grade">Penilaian final Codex</span> : <button className="btn" disabled={busy} onClick={() => retryGrade(row.id)}>{row.status === 'graded' ? 'Nilai lagi dengan AI' : 'Nilai dengan AI'}</button>}</details></td>
-      </tr>)}</tbody></table></div>}
+      {loading ? <p>Memuat…</p> : !studentGradeRows.length ? <p>Tidak ada mahasiswa pada kelas ini.</p> : <div className="cisa-table-wrap"><table className="cisa-table"><thead><tr><th>NPM</th><th>Mahasiswa</th><th>Tim</th><th>Paket</th><th>Submission terakhir</th><th>Status</th><th>Nilai</th><th>Detail</th></tr></thead><tbody>{studentGradeRows.map(({ student, submission: row }) => {
+        const teammates = row?.members?.filter(member => String(member.npm) !== String(student.npm)) || []
+        return <tr key={student.id || student.npm}>
+          <td>{student.npm}</td><td>{student.name}</td><td>{teammates.length ? teammates.map(member => member.name).join(', ') : '—'}</td><td>{row?.round || '—'}</td><td>{row ? new Date(row.uploaded_at).toLocaleString('id-ID') : '—'}</td><td>{row ? (prettyStatus[row.status] || row.status) : 'Belum mengumpulkan'}</td><td>{row?.assessment ? `${row.assessment.total} / ${row.assessment.max_score}` : '—'}</td>
+          <td>{row ? <details><summary>Lihat</summary><Assessment row={row} showAnswers />{isCodexReviewed(row) ? <span className="cisa-final-grade">Penilaian final Codex</span> : <button className="btn" disabled={busy} onClick={() => retryGrade(row.id)}>{row.status === 'graded' ? 'Nilai lagi dengan AI' : 'Nilai dengan AI'}</button>}</details> : '—'}</td>
+        </tr>
+      })}</tbody></table></div>}
     </section>}
   </div>
 }

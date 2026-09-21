@@ -1174,7 +1174,7 @@ export default function ExerciseTab({ sectionId, userId, profile, selectedStuden
   const sectionTitle = SECTIONS.find(s => s.id === sectionId)?.title ?? `Sesi ${sectionId}`
 
   if (sectionId === 14) return <SqlStudyCaseExercise profile={profile} />
-  if (sectionId === 15) return <CisaCaseSubmissions profile={profile} />
+  if (sectionId === 15) return <CisaCaseSubmissions profile={profile} students={students} />
 
   if (quizView) {
     return (

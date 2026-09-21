@@ -5,7 +5,7 @@ import { createServer } from 'vite'
 
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' })
 try {
-  const { default: Component, getCisaFunctionErrorMessage, isCodexReviewed } = await vite.ssrLoadModule('/src/pages/CisaCaseSubmissions.jsx')
+  const { default: Component, buildStudentGradeRows, getCisaFunctionErrorMessage, isCodexReviewed } = await vite.ssrLoadModule('/src/pages/CisaCaseSubmissions.jsx')
   const backendDetail = await getCisaFunctionErrorMessage({
     message: 'Edge Function returned a non-2xx status code',
     context: { json: async () => ({ error: 'Team members do not match active profiles in this class.' }) },
@@ -13,6 +13,14 @@ try {
   assert.equal(backendDetail, 'Team members do not match active profiles in this class.')
   assert.equal(isCodexReviewed({ assessment: { reviewer_status: 'reviewed_by_codex' } }), true)
   assert.equal(isCodexReviewed({ assessment: { reviewer_status: 'graded_by_ai' } }), false)
+  const gradeRows = buildStudentGradeRows([
+    { id: 'a', npm: '001', name: 'Alpha', class: 'Audit-2' },
+    { id: 'b', npm: '002', name: 'Beta', class: 'Audit-2' },
+    { id: 'c', npm: '003', name: 'Gamma', class: 'Audit-BL' },
+  ], [{ id: 'submission-1', class_name: 'Audit-2', is_latest: true, members: [{ npm: '001' }] }], 'Audit-2')
+  assert.equal(gradeRows.length, 2)
+  assert.equal(gradeRows[0].submission.id, 'submission-1')
+  assert.equal(gradeRows[1].submission, null)
   const student = renderToStaticMarkup(React.createElement(Component, { profile: { id: 'student-a', is_admin: false } }))
   assert.match(student, /Cukup satu anggota tim/)
   assert.match(student, /Submission tim saya/)
