@@ -8,6 +8,25 @@ const prettyStatus = {
   grading_failed: 'Penilaian perlu dicoba ulang',
 }
 
+export async function getCisaFunctionErrorMessage(error, data) {
+  let detail = data?.error
+  if (!detail && error?.context) {
+    try {
+      const responseBody = await error.context.json()
+      detail = responseBody?.error || responseBody?.message
+    } catch (_) {
+      // Keep the SDK message when the response is not JSON.
+    }
+  }
+  return detail || error?.message || 'Edge Function tidak dapat memproses permintaan.'
+}
+
+async function invokeCisaFunction(body) {
+  const { data, error } = await supabase.functions.invoke(functionName, { body })
+  if (!error && !data?.error) return data
+  throw new Error(await getCisaFunctionErrorMessage(error, data))
+}
+
 function TeamNames({ members = [] }) {
   return <span className="cisa-team-members">
     {members.map(member => <span className="cisa-team-member" key={member.id || member.npm}>
@@ -40,12 +59,14 @@ export default function CisaCaseSubmissions({ profile }) {
 
   async function refresh() {
     setLoading(true)
-    const { data, error } = await supabase.functions.invoke(functionName, {
-      body: { action: 'list', class_name: profile.is_admin ? classFilter : undefined },
-    })
-    setLoading(false)
-    if (error || data?.error) { setMessage(error?.message || data?.error); return }
-    setSubmissions(data?.submissions || [])
+    try {
+      const data = await invokeCisaFunction({ action: 'list', class_name: profile.is_admin ? classFilter : undefined })
+      setSubmissions(data?.submissions || [])
+    } catch (error) {
+      setMessage(`Gagal memuat submission: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { refresh() }, [profile.is_admin, classFilter])
@@ -62,8 +83,7 @@ export default function CisaCaseSubmissions({ profile }) {
     try {
       const envelope = JSON.parse(await file.text())
       if (envelope?.format !== 'cisa-d4d5-encrypted/v1') throw Error('Format file tidak sesuai.')
-      const { data, error } = await supabase.functions.invoke(functionName, { body: { action: 'submit', envelope } })
-      if (error || data?.error) throw Error(data?.error || error.message)
+      const data = await invokeCisaFunction({ action: 'submit', envelope })
       setMessage(`Jawaban diterima untuk ${data.members.map(member => member.name).join(', ')}. Seluruh anggota tim sekarang dapat melihat submission ini.`)
       setFile(null)
       form.reset()
@@ -74,8 +94,8 @@ export default function CisaCaseSubmissions({ profile }) {
   }
 
   async function gradeOne(id, refreshAfter = true) {
-    const { data, error } = await supabase.functions.invoke(functionName, { body: { action: 'grade', id } })
-    if (error || data?.error || data?.status !== 'graded') throw Error(data?.error || error?.message || 'Penilaian gagal.')
+    const data = await invokeCisaFunction({ action: 'grade', id })
+    if (data?.status !== 'graded') throw Error('Penilaian gagal.')
     if (refreshAfter) await refresh()
   }
 

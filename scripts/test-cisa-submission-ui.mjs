@@ -5,7 +5,12 @@ import { createServer } from 'vite'
 
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' })
 try {
-  const { default: Component } = await vite.ssrLoadModule('/src/pages/CisaCaseSubmissions.jsx')
+  const { default: Component, getCisaFunctionErrorMessage } = await vite.ssrLoadModule('/src/pages/CisaCaseSubmissions.jsx')
+  const backendDetail = await getCisaFunctionErrorMessage({
+    message: 'Edge Function returned a non-2xx status code',
+    context: { json: async () => ({ error: 'Team members do not match active profiles in this class.' }) },
+  })
+  assert.equal(backendDetail, 'Team members do not match active profiles in this class.')
   const student = renderToStaticMarkup(React.createElement(Component, { profile: { id: 'student-a', is_admin: false } }))
   assert.match(student, /Cukup satu anggota tim/)
   assert.match(student, /Submission tim saya/)
