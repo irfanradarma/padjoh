@@ -51,6 +51,12 @@ function TeamNames({ members = [] }) {
   </span>
 }
 
+export function SubmittedAnswers({ answers = {} }) {
+  const entries = Object.entries(answers)
+  if (!entries.length) return <p>Jawaban tidak tersedia.</p>
+  return <div className="cisa-submitted-answers">{entries.map(([id, answer]) => <div key={id}><b>{id}</b><p>{answer || '—'}</p></div>)}</div>
+}
+
 function Assessment({ row, showAnswers = false }) {
   return <div className="cisa-detail">
     {row.assessment?.summary && <div className="cisa-review-summary"><b>Ringkasan penilaian</b><p>{row.assessment.summary}</p>{row.assessment.reviewer && <small>Direviu oleh {row.assessment.reviewer}</small>}</div>}
@@ -59,7 +65,7 @@ function Assessment({ row, showAnswers = false }) {
       {item.scores?.map(score => <p key={score.id}><b>{score.id}: {score.score}/{score.max_score}</b> — {score.feedback}</p>)}
     </div>)}
     {!row.assessment && <p>{prettyStatus[row.status] || row.status}.</p>}
-    {showAnswers && <><h4>Jawaban yang dikumpulkan</h4>{Object.entries(row.answers || {}).map(([id, answer]) => <div key={id}><b>{id}</b><p>{answer || '—'}</p></div>)}</>}
+    {showAnswers && <><h4>Jawaban yang dikumpulkan</h4><SubmittedAnswers answers={row.answers} /></>}
     {row.grading_error && <p className="cisa-error">Kesalahan AI: {row.grading_error}</p>}
   </div>
 }
@@ -159,6 +165,7 @@ export default function CisaCaseSubmissions({ profile, students = [] }) {
       <div className="cisa-card-head"><div><h3>Submission tim saya</h3><p>Yang ditampilkan adalah submission terbaru untuk setiap paket yang mencantumkan Anda sebagai anggota.</p></div><button className="btn" onClick={refresh} disabled={loading}>Refresh</button></div>
       {loading ? <p>Memuat…</p> : !submissions.length ? <div className="cisa-empty"><b>Belum ada submission tim.</b><p>Submission juga akan muncul jika diunggah oleh anggota tim Anda.</p></div> : <div className="cisa-student-results">{submissions.map(row => <article className="cisa-result-card" key={row.id}>
         <div className="cisa-result-head"><div><span className="cisa-package">Paket {row.round}</span><h4><TeamNames members={row.members} /></h4><small>Diunggah {new Date(row.uploaded_at).toLocaleString('id-ID')}</small></div><div className={`cisa-status ${row.status}`}>{prettyStatus[row.status] || row.status}</div></div>
+        <details><summary>Lihat jawaban yang dikumpulkan</summary><SubmittedAnswers answers={row.answers} /></details>
         {row.assessment ? <details><summary>Lihat nilai dan feedback · {row.assessment.total}/{row.assessment.max_score}</summary><Assessment row={row} /></details> : <p className="cisa-waiting">Nilai dan feedback akan muncul di sini setelah dosen menjalankan penilaian.</p>}
       </article>)}</div>}
     </section>}

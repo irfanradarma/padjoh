@@ -9,6 +9,14 @@ const HEADERS = {
 };
 const reply = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: HEADERS });
 const bad = (message: string, status = 400) => reply({ error: message }, status);
+const errorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    const value = error as Record<string, unknown>;
+    return [value.message, value.details, value.hint, value.code].filter(Boolean).map(String).join(' | ') || 'Unknown server error.';
+  }
+  return String(error || 'Unknown server error.');
+};
 
 function fromBase64url(value: string) {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) throw Error('Invalid encrypted file encoding.');
@@ -134,13 +142,14 @@ Deno.serve(async req => {
         query = query.limit(200);
         if (['Audit-2', 'Audit-BL'].includes(body.class_name)) query = query.eq('class_name', body.class_name);
       } else {
-        // JSON containment makes one upload visible to every recorded team member.
-        query = query.contains('members', [{ id: profile.id }]).limit(50);
+        // NPM is the stable classroom identity, including when an auth account is recreated.
+        query = query.filter('members', 'cs', JSON.stringify([{ npm: profile.npm }])).limit(50);
       }
       const { data, error } = await query;
       if (error) throw error;
       const visible = (data || []).filter((row: any) => profile.is_admin ||
-        (Array.isArray(row.members) && row.members.some((member: any) => member.id === profile.id)));
+        (Array.isArray(row.members) && row.members.some((member: any) =>
+          member.id === profile.id || String(member.npm) === String(profile.npm))));
       const marked = withLatestFlag(visible);
       return reply({ submissions: profile.is_admin ? marked : marked.filter((row: any) => row.is_latest) });
     }
@@ -181,6 +190,6 @@ Deno.serve(async req => {
     if (saveError) throw saveError;
     return reply({ id: saved.id, round: saved.round, status: 'pending', members: normalizedMembers });
   } catch (error) {
-    return bad(error instanceof Error ? error.message : 'Unknown server error.', 500);
+    return bad(errorMessage(error), 500);
   }
 });

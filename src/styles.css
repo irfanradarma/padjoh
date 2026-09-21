@@ -1908,6 +1908,9 @@ body {
 .cisa-review-summary { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var(--accent); border-radius: 6px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 .cisa-review-summary p { margin: 5px 0; color: var(--text); }
 .cisa-review-summary small { color: var(--muted); }
+.cisa-submitted-answers { max-height: 520px; margin-top: 12px; padding: 12px 14px; overflow: auto; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.cisa-submitted-answers > div + div { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cisa-submitted-answers p { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .cisa-final-grade { display: inline-flex; align-items: center; margin-top: 12px; padding: 6px 11px; border: 1px solid color-mix(in srgb, #16a34a 35%, transparent); border-radius: 999px; background: color-mix(in srgb, #16a34a 10%, transparent); color: #15803d; font-size: .8rem; font-weight: 700; }
 .cisa-waiting, .cisa-empty { margin: 14px 0 0; padding: 12px; border-radius: 7px; background: var(--surface); color: var(--muted); }
 .cisa-old-version { opacity: .58; }
