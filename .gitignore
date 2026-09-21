@@ -3,5 +3,7 @@ dist
 .env
 .env.local
 .env.cisa.local
+.env.cisa-worksheet.local
+docs/cisa-domain-4-5-case-quiz.source.local.html
 *.log
 .DS_Store
