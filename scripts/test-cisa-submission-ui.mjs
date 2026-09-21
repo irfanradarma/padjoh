@@ -16,6 +16,27 @@ try {
   assert.match(admin, /Submission dan penilaian kelas/)
   assert.match(admin, /Nilai kelas \(0\)/)
   assert.doesNotMatch(admin, /Submission tim saya/)
+
+  const { default: ExerciseTab } = await vite.ssrLoadModule('/src/pages/tabs/ExerciseTab.jsx')
+  const uasStudent = renderToStaticMarkup(React.createElement(ExerciseTab, {
+    sectionId: 15,
+    userId: 'student-a',
+    profile: { id: 'student-a', is_admin: false },
+    students: [],
+  }))
+  assert.match(uasStudent, /Submission tim saya/)
+  assert.doesNotMatch(uasStudent, /Belum ada file/)
+  assert.doesNotMatch(uasStudent, /Penilaian Latihan/)
+
+  const uasAdmin = renderToStaticMarkup(React.createElement(ExerciseTab, {
+    sectionId: 15,
+    userId: 'admin',
+    profile: { id: 'admin', is_admin: true },
+    students: [],
+  }))
+  assert.match(uasAdmin, /Submission dan penilaian kelas/)
+  assert.doesNotMatch(uasAdmin, /Belum ada file/)
+  assert.doesNotMatch(uasAdmin, /Penilaian Latihan/)
   console.log('CISA submission UI render passed for student and admin perspectives.')
 } finally {
   await vite.close()

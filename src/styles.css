@@ -1896,6 +1896,9 @@ body {
 .cisa-result-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
 .cisa-result-head h4 { margin: 5px 0; font-size: 14px; }
 .cisa-result-head small { color: var(--muted); }
+.cisa-team-members { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.cisa-team-member { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.cisa-team-member > small { padding: 2px 7px; border-radius: 999px; background: color-mix(in srgb, var(--success, #16a34a) 14%, transparent); color: var(--success, #15803d); font-size: 10px; font-weight: 700; white-space: nowrap; }
 .cisa-package { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .cisa-status { flex: none; padding: 6px 9px; border-radius: 100px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
 .cisa-status.graded { background: #dcfce7; color: #166534; }

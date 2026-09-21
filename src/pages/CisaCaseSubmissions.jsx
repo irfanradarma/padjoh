@@ -9,7 +9,12 @@ const prettyStatus = {
 }
 
 function TeamNames({ members = [] }) {
-  return members.map(member => `${member.name} (${member.npm})`).join(', ')
+  return <span className="cisa-team-members">
+    {members.map(member => <span className="cisa-team-member" key={member.id || member.npm}>
+      <span>{member.name} ({member.npm})</span>
+      <small>✓ Submit via tim</small>
+    </span>)}
+  </span>
 }
 
 function Assessment({ row, showAnswers = false }) {
