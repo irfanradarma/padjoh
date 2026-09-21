@@ -38,6 +38,7 @@ function TeamNames({ members = [] }) {
 
 function Assessment({ row, showAnswers = false }) {
   return <div className="cisa-detail">
+    {row.assessment?.summary && <div className="cisa-review-summary"><b>Ringkasan penilaian</b><p>{row.assessment.summary}</p>{row.assessment.reviewer && <small>Direviu oleh {row.assessment.reviewer}</small>}</div>}
     {row.assessment?.cases?.map(item => <div className="cisa-case-result" key={item.case_id}>
       <h4>{item.title || item.case_id} · {item.total}/{item.max_score}</h4>
       {item.scores?.map(score => <p key={score.id}><b>{score.id}: {score.score}/{score.max_score}</b> — {score.feedback}</p>)}
