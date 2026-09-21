@@ -21,6 +21,10 @@ export async function getCisaFunctionErrorMessage(error, data) {
   return detail || error?.message || 'Edge Function tidak dapat memproses permintaan.'
 }
 
+export function isCodexReviewed(row) {
+  return row?.assessment?.reviewer_status === 'reviewed_by_codex'
+}
+
 async function invokeCisaFunction(body) {
   const { data, error } = await supabase.functions.invoke(functionName, { body })
   if (!error && !data?.error) return data
@@ -148,11 +152,11 @@ export default function CisaCaseSubmissions({ profile }) {
     </section>}
 
     {profile.is_admin && <section className="cisa-card">
-      <div className="cisa-card-head"><div><h3>Submission dan penilaian kelas</h3><p>Penilaian kelas hanya memproses submission terbaru setiap tim dan paket. Skor AI tetap perlu pertimbangan dosen.</p></div><div className="cisa-filters"><select value={classFilter} onChange={event => setClassFilter(event.target.value)}><option value="Audit-2">Audit-2</option><option value="Audit-BL">Audit-BL</option><option value="">Semua kelas</option></select><button className="btn" onClick={refresh} disabled={loading || busy}>Refresh</button><button className="btn btn-primary" onClick={gradeClass} disabled={busy || !classFilter || !batchRows.length}>Nilai kelas ({batchRows.length})</button></div></div>
+      <div className="cisa-card-head"><div><h3>Submission dan penilaian kelas</h3><p>Penilaian kelas hanya memproses submission terbaru setiap tim dan paket. Hasil yang sudah direviu Codex ditandai sebagai penilaian final.</p></div><div className="cisa-filters"><select value={classFilter} onChange={event => setClassFilter(event.target.value)}><option value="Audit-2">Audit-2</option><option value="Audit-BL">Audit-BL</option><option value="">Semua kelas</option></select><button className="btn" onClick={refresh} disabled={loading || busy}>Refresh</button><button className="btn btn-primary" onClick={gradeClass} disabled={busy || !classFilter || !batchRows.length}>Nilai kelas ({batchRows.length})</button></div></div>
       {gradingProgress && <div className="cisa-progress" role="status"><div style={{ width: `${gradingProgress.total ? gradingProgress.completed / gradingProgress.total * 100 : 0}%` }} /><span>Menilai {gradingProgress.completed}/{gradingProgress.total} submission</span></div>}
       {loading ? <p>Memuat…</p> : !submissions.length ? <p>Belum ada submission.</p> : <div className="cisa-table-wrap"><table className="cisa-table"><thead><tr><th>Kelas</th><th>Paket</th><th>Tim</th><th>Upload</th><th>Versi</th><th>Status</th><th>Skor</th><th>Detail</th></tr></thead><tbody>{submissions.map(row => <tr key={row.id} className={row.is_latest ? '' : 'cisa-old-version'}>
         <td>{row.class_name}</td><td>{row.round}</td><td><TeamNames members={row.members} /></td><td>{new Date(row.uploaded_at).toLocaleString('id-ID')}</td><td>{row.is_latest ? 'Terbaru' : 'Terdahulu'}</td><td>{prettyStatus[row.status] || row.status}</td><td>{row.assessment ? `${row.assessment.total} / ${row.assessment.max_score}` : '—'}</td>
-        <td><details><summary>Lihat</summary><Assessment row={row} showAnswers /><button className="btn" disabled={busy} onClick={() => retryGrade(row.id)}>{row.status === 'graded' ? 'Nilai lagi dengan AI' : 'Nilai dengan AI'}</button></details></td>
+        <td><details><summary>Lihat</summary><Assessment row={row} showAnswers />{isCodexReviewed(row) ? <span className="cisa-final-grade">Penilaian final Codex</span> : <button className="btn" disabled={busy} onClick={() => retryGrade(row.id)}>{row.status === 'graded' ? 'Nilai lagi dengan AI' : 'Nilai dengan AI'}</button>}</details></td>
       </tr>)}</tbody></table></div>}
     </section>}
   </div>
